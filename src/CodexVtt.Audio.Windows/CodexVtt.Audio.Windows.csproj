@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>CodexVtt.Audio.Windows</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodexVtt.Core\CodexVtt.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ADR-0004: decodifica tramite Media Foundation del sistema, nessun FFmpeg. -->
+    <PackageReference Include="NAudio.Wasapi" />
+    <PackageReference Include="NAudio.Core" />
+  </ItemGroup>
+
+</Project>

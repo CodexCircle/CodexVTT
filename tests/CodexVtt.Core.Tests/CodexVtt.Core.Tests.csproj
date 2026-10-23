@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CodexVtt.Core\CodexVtt.Core.csproj" />
+    <ProjectReference Include="..\..\src\CodexVtt.Models.Download\CodexVtt.Models.Download.csproj" />
+    <ProjectReference Include="..\..\src\CodexVtt.Bridge\CodexVtt.Bridge.csproj" />
+  </ItemGroup>
+
+</Project>

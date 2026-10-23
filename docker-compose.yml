@@ -1,0 +1,23 @@
+# CodexVTT Server in Docker (ADR-0007).
+#   1. Scegli un token lungo e segreto:   $env:CODEXVTT_TOKEN = "una-frase-lunga-e-segreta"   (PowerShell)
+#                                         export CODEXVTT_TOKEN=una-frase-lunga-e-segreta       (Linux/macOS)
+#   2. docker compose up -d --build
+#   3. Apri http://localhost:5185/?token=<il tuo token> una volta (poi il browser lo ricorda).
+services:
+  codexvtt:
+    build: .
+    image: codexvtt-server
+    restart: unless-stopped
+    ports:
+      # Solo questo PC. Per la rete locale usa "5185:5185" (e metti HTTPS davanti se esci dalla LAN).
+      - "127.0.0.1:5185:5185"
+    environment:
+      CodexVtt__AccessToken: ${CODEXVTT_TOKEN:?imposta CODEXVTT_TOKEN con un token lungo e segreto}
+    volumes:
+      # Modelli, impostazioni, log e cronologia sopravvivono agli aggiornamenti del container.
+      - codexvtt-data:/data
+    # Limite di memoria opzionale: CodexVTT sceglie i modelli in base alla RAM che vede.
+    # mem_limit: 8g
+
+volumes:
+  codexvtt-data:

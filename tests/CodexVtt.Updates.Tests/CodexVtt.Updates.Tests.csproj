@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <ProjectReference Include="..\..\src\CodexVtt.Updates\CodexVtt.Updates.csproj" />
+  </ItemGroup>
+
+</Project>

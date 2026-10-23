@@ -1,0 +1,12 @@
+bin/
+obj/
+*.user
+.vs/
+node_modules/
+spike/runtime-probe/results/
+*.part
+TestResults/
+ui/dist/
+ui/dist-preview/
+src/CodexVtt.App/Resources/Raw/wwwroot/
+src/CodexVtt.Server/wwwroot/

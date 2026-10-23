@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>CodexVtt.Updates</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodexVtt.Core\CodexVtt.Core.csproj" />
+    <ProjectReference Include="..\CodexVtt.Bridge\CodexVtt.Bridge.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ADR-0008: unico componente che parla con GitHub per gli aggiornamenti dell'app. -->
+    <PackageReference Include="Velopack" />
+  </ItemGroup>
+
+</Project>

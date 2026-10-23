@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="456" height="456" viewBox="0 0 456 456" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="shade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fbf7f4" />
+      <stop offset="1" stop-color="#ebe4da" />
+    </linearGradient>
+    <linearGradient id="curl" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" />
+      <stop offset="0.55" stop-color="#e5ded2" />
+      <stop offset="1" stop-color="#c4b8a8" />
+    </linearGradient>
+    <clipPath id="box">
+      <rect x="4" y="4" width="56" height="56" rx="16" />
+    </clipPath>
+    <clipPath id="sheet">
+      <path d="M8 0H52a8 8 0 0 1 8 8V36a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V8a8 8 0 0 1 8-8z" />
+    </clipPath>
+  </defs>
+  <!-- Solo il foglio con l'angolo sollevato, in area di sicurezza (adaptive icon). Geometria da ui/src/components/Logo.tsx. -->
+  <g transform="translate(228 228) scale(5.7) translate(-32 -32)">
+    <g clip-path="url(#box)">
+      <rect x="4" y="4" width="56" height="56" rx="16" fill="#685d54" />
+    <g transform="translate(20 -8) rotate(-14)">
+      <rect x="-6.8" y="-8.6" width="76" height="60" rx="10" fill="#000" opacity="0.3" />
+      <rect x="-6" y="-10" width="76" height="60" rx="10" fill="#a39382" />
+      <path transform="translate(-0.8 1.4)" d="M8 0H52a8 8 0 0 1 8 8V36a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V8a8 8 0 0 1 8-8z" fill="#000" opacity="0.3" />
+      <path d="M8 0H52a8 8 0 0 1 8 8V36a8 8 0 0 1-8 8H8a8 8 0 0 1-8-8V8a8 8 0 0 1 8-8z" fill="url(#shade)" />
+      <g clip-path="url(#sheet)" stroke="#685d54" stroke-opacity="0.16" stroke-width="1" fill="none">
+        <path d="M0 8.5h60M0 16.5h60M0 24.5h60M0 32.5h60M0 40.5h60" />
+      </g>
+      <path d="M0 31C8 31 15 37 15 44H8a8 8 0 0 1-8-8z" fill="#a39382" opacity="0.45" />
+      <path d="M0 31C8 31 15 37 15 44C19 40 22 33 17 28.5C12.5 24.5 5 26 0 31z" fill="url(#curl)" />
+    </g>
+    </g>
+  </g>
+</svg>

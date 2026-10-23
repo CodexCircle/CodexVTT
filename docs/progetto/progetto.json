@@ -1,0 +1,126 @@
+{
+  "labels": [
+    { "name": "bloccante", "color": "b60205", "description": "Da risolvere prima del rilascio della milestone" },
+    { "name": "ui", "color": "1d76db", "description": "Interfaccia grafica" },
+    { "name": "server", "color": "0e8a16", "description": "Versione server (browser, Docker, servizio)" },
+    { "name": "aggiornamenti", "color": "5319e7", "description": "Aggiornamenti dell'app da GitHub" },
+    { "name": "infrastruttura", "color": "795548", "description": "Repository, rilasci, strumenti" },
+    { "name": "documentazione", "color": "0075ca", "description": "Documenti e guide" },
+    { "name": "miglioramento", "color": "a2eeef", "description": "Nuova funzione o miglioria" }
+  ],
+  "milestones": [
+    { "title": "0.1.0 - Primo rilascio pubblico", "description": "Primo rilascio di CodexVTT: nome nuovo, coda batch, server Docker, aggiornamenti da GitHub." },
+    { "title": "0.2.0 - Nuova interfaccia", "description": "Interfaccia grafica rifatta e identità visiva di CodexVTT." },
+    { "title": "0.3.0 - Server maturo", "description": "Server in Docker pronto per un uso più ampio: coda persistente, HTTPS, immagine pubblicata." }
+  ],
+  "issues": [
+    {
+      "title": "Scegliere e aggiungere la licenza del progetto",
+      "milestone": "0.1.0 - Primo rilascio pubblico",
+      "labels": ["bloccante", "documentazione"],
+      "body": "Il repository diventa pubblico ma non ha un file `LICENSE` (vedi `docs/architecture/licenze.md`, punto 4). Senza licenza nessuno può legalmente usare, modificare o ridistribuire il codice.\n\n**Da fare**\n- [ ] Scegliere la licenza (es. MIT o Apache-2.0, compatibili con le dipendenze: Whisper.net, whisper.cpp, NAudio, Velopack, React sono MIT/Apache)\n- [ ] Aggiungere `LICENSE` e il campo `PackageLicenseExpression`/`license` dove serve\n- [ ] Aggiornare `docs/architecture/licenze.md` con la scelta\n- [ ] Verificare gli obblighi di ffmpeg nell'immagine Docker (pacchetto di Ubuntu, LGPL/GPL): se l'immagine viene pubblicata va indicato\n- [ ] Verificare la licenza dei modelli Whisper scaricati (OpenAI, MIT)"
+    },
+    {
+      "title": "Verificare a mano il selettore multi-file su Windows",
+      "milestone": "0.1.0 - Primo rilascio pubblico",
+      "labels": ["bloccante", "ui"],
+      "body": "La coda batch (scelta di più file con un solo dialog) è coperta da test automatici ma il dialog nativo di Windows non è mai stato provato a mano.\n\n**Da fare**\n- [ ] Aprire l'app e scegliere 3 file insieme (anche formati diversi) dal dialog\n- [ ] Aggiungere altri file a una coda già presente\n- [ ] Annullare il dialog senza scegliere nulla\n- [ ] Scegliere un file non leggibile e uno valido insieme\n- [ ] Avviare la coda, annullare a metà, riavviarla"
+    },
+    {
+      "title": "Verificare l'installazione come servizio di Windows",
+      "milestone": "0.1.0 - Primo rilascio pubblico",
+      "labels": ["server"],
+      "body": "`scripts/installa-servizio.ps1` non è mai stato eseguito.\n\n**Da fare**\n- [ ] Installare con `-Urls http://0.0.0.0:5185 -Token ...` da PowerShell amministratore\n- [ ] Riavviare il PC e verificare che il servizio parta da solo\n- [ ] Chiudere il browser a coda avviata e controllare che la coda prosegua\n- [ ] Verificare dove finiscono modelli, impostazioni e cronologia (profilo dell'account del servizio)\n- [ ] Disinstallare con `-Disinstalla` e controllare che i dati restino"
+    },
+    {
+      "title": "Prima release 0.1.0 e prova dell'aggiornamento 0.1.0 → 0.1.1",
+      "milestone": "0.1.0 - Primo rilascio pubblico",
+      "labels": ["bloccante", "aggiornamenti", "infrastruttura"],
+      "body": "Gli aggiornamenti da GitHub (ADR-0008) sono provati con un feed Velopack di prova ma non su una vera installazione.\n\n**Da fare**\n- [ ] `scripts/test-locale.ps1 -Docker -Feed` verde\n- [ ] `scripts/release-locale.ps1 -DryRun`, installare `CodexVTT-win-Setup.exe` su un PC pulito\n- [ ] Pubblicare 0.1.0 con `scripts/release-locale.ps1` (crea il tag `v0.1.0`)\n- [ ] Preparare 0.1.1 (cambio di `Directory.Build.props` + `docs/releases/0.1.1.md`) e pubblicarla\n- [ ] Nell'app 0.1.0: Impostazioni → Aggiornamenti → Controlla → Installa e riavvia\n- [ ] Verificare che i dati (modelli, cronologia) restino e che il delta sia stato usato\n- [ ] Verificare che con la casella spenta l'app non contatti GitHub (nessuna richiesta all'avvio)"
+    },
+    {
+      "title": "Sostituire logo e riferimenti grafici al vecchio nome",
+      "milestone": "0.1.0 - Primo rilascio pubblico",
+      "labels": ["ui", "documentazione"],
+      "body": "Il codice e i testi usano il nuovo nome, ma le immagini no.\n\n**Da fare**\n- [ ] `docs/assets/logo.png` (usato dal README)\n- [ ] `src/CodexVtt.App/Resources/AppIcon/appicon.svg` e `appiconfg.svg`\n- [ ] `ui/src/components/Logo.tsx` e le mascotte (`ui/src/mascot`)\n- [ ] Favicon e icona dell'installer Velopack (`vpk pack --icon`)"
+    },
+    {
+      "title": "Proteggere main e completare le impostazioni del repository",
+      "milestone": "0.1.0 - Primo rilascio pubblico",
+      "labels": ["infrastruttura"],
+      "body": "Il progetto non usa Actions (già disattivate): i controlli si eseguono con `scripts/test-locale.ps1`.\n\n**Da fare**\n- [x] Actions disattivate (Settings → Actions → General)\n- [x] Descrizione e topic del repository\n- [ ] Protezione di `main`: richiedere pull request, vietare force push\n- [ ] Attivare Issues, disattivare Wiki e Projects se non servono\n- [ ] Attivare *Private vulnerability reporting* e aggiungere `SECURITY.md`"
+    },
+    {
+      "title": "Controllo visivo della UI nel browser (versione server)",
+      "milestone": "0.1.0 - Primo rilascio pubblico",
+      "labels": ["server", "ui"],
+      "body": "La UI servita dal server è stata verificata con test automatici e leggendo il contenuto della pagina, ma non a occhio.\n\n**Da fare**\n- [ ] Aprire `http://localhost:5185/?token=...` da Chrome, Edge e Firefox\n- [ ] Caricare più file, avviare la coda, ricaricare la pagina a lavoro in corso\n- [ ] Scaricare gli export (txt, srt, vtt)\n- [ ] Provare da telefono sulla rete locale\n- [ ] Controllare il layout stretto (mobile) e il tema scuro"
+    },
+    {
+      "title": "Nuova interfaccia grafica di CodexVTT",
+      "milestone": "0.2.0 - Nuova interfaccia",
+      "labels": ["ui", "miglioramento"],
+      "body": "Ridisegnare la UI con la nuova identità. La rinomina non ha toccato layout, colori né mascotte.\n\n**Da decidere**\n- [ ] Direzione grafica, palette e tipografia (oggi: Sabbia, Natale, Halloween, Ciliegia)\n- [ ] Layout della schermata di trascrizione e della coda\n- [ ] Versione mobile della UI del server\n- [ ] Accessibilità (i test `axe` esistenti devono restare verdi)"
+    },
+    {
+      "title": "Mascotte Tina e Giulio: tenerle, sostituirle o renderle opzionali",
+      "milestone": "0.2.0 - Nuova interfaccia",
+      "labels": ["ui"],
+      "body": "Le mascotte vengono dal progetto precedente. Decidere se fanno parte dell'identità di CodexVTT."
+    },
+    {
+      "title": "Rivedere i testi italiani e inglesi dopo la rinomina",
+      "milestone": "0.2.0 - Nuova interfaccia",
+      "labels": ["ui", "documentazione"],
+      "body": "La rinomina del progetto è stata automatica: rileggere `ui/src/i18n/messages.ts`, `docs/guida-utente.md` e le descrizioni per frasi che non suonano bene col nuovo nome."
+    },
+    {
+      "title": "Firma del codice di installer e release",
+      "milestone": "0.2.0 - Nuova interfaccia",
+      "labels": ["aggiornamenti", "infrastruttura"],
+      "body": "L'installer non è firmato: SmartScreen avvisa alla prima esecuzione. Valutare un certificato (o Azure Trusted Signing) e il flag `--signParams` di `vpk pack` (ADR-0005, ADR-0008)."
+    },
+    {
+      "title": "Coda persistente: sopravvive al riavvio del server",
+      "milestone": "0.3.0 - Server maturo",
+      "labels": ["server", "miglioramento"],
+      "body": "Oggi la coda è in memoria: riavviando il container o il servizio si perde (le trascrizioni già finite restano in cronologia). Salvare la coda nella cartella dati e riprenderla all'avvio, mantenendo i file caricati."
+    },
+    {
+      "title": "HTTPS per il server: guida e reverse proxy",
+      "milestone": "0.3.0 - Server maturo",
+      "labels": ["server", "documentazione"],
+      "body": "Il server non fa HTTPS. Documentare (e magari fornire in `docker-compose`) un reverse proxy con certificato (Caddy, Traefik) e le impostazioni dei cookie `Secure` dietro proxy (`X-Forwarded-Proto`)."
+    },
+    {
+      "title": "Pubblicare l'immagine Docker e aggiornare il server dalla UI",
+      "milestone": "0.3.0 - Server maturo",
+      "labels": ["server", "aggiornamenti"],
+      "body": "Pubblicare l'immagine su un registro (es. `ghcr.io`) a ogni release, senza Actions (script locale), e mostrare nella UI del server se esiste una versione più recente (senza installarla da sola)."
+    },
+    {
+      "title": "Immagine Docker arm64",
+      "milestone": "0.3.0 - Server maturo",
+      "labels": ["server"],
+      "body": "L'immagine è solo `linux-x64`. Verificare il runtime Whisper su `linux-arm64` (Mac con Apple Silicon, Raspberry Pi 5) e costruire un'immagine multi-architettura."
+    },
+    {
+      "title": "Pulizia dei file caricati e limiti di caricamento",
+      "milestone": "0.3.0 - Server maturo",
+      "labels": ["server"],
+      "body": "I file caricati restano in `uploads` fino al riavvio. Cancellarli a lavoro finito (o dopo un tempo), limitare dimensione e numero per richiesta, mostrare l'occupazione del disco."
+    },
+    {
+      "title": "Più utenti e permessi nel server",
+      "milestone": "0.3.0 - Server maturo",
+      "labels": ["server", "miglioramento"],
+      "body": "Oggi c'è un solo token e tutte le pagine vedono la stessa coda e la stessa cronologia. Valutare più token con ruoli (sola lettura, trascrizione) e cronologie separate."
+    },
+    {
+      "title": "Canale anteprima per gli aggiornamenti scelto dall'utente",
+      "milestone": "0.3.0 - Server maturo",
+      "labels": ["aggiornamenti", "miglioramento"],
+      "body": "Oggi le pre-release (`-beta.N`) le ricevono solo le copie già in pre-release. Aggiungere una scelta in Impostazioni (stabile / anteprima), vedi ADR-0008."
+    }
+  ]
+}

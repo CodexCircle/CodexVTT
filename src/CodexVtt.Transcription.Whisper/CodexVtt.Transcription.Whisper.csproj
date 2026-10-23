@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>CodexVtt.Transcription.Whisper</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodexVtt.Core\CodexVtt.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- ADR-0002: runtime CPU + fallback NoAvx; nessun runtime GPU in V1. -->
+    <PackageReference Include="Whisper.net" />
+    <PackageReference Include="Whisper.net.Runtime" />
+    <PackageReference Include="Whisper.net.Runtime.NoAvx" />
+  </ItemGroup>
+
+</Project>

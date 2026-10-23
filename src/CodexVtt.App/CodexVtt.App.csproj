@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- V1: solo Windows 11 x64 (ADR-0002). -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <OutputType>WinExe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <RootNamespace>CodexVtt.App</RootNamespace>
+    <ApplicationTitle>CodexVTT</ApplicationTitle>
+    <ApplicationId>it.codexvtt.desktop</ApplicationId>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <!-- ADR-0005: app unpackaged e self-contained, installata da Velopack. -->
+    <WindowsPackageType>None</WindowsPackageType>
+    <WindowsAppSDKSelfContained>true</WindowsAppSDKSelfContained>
+    <SelfContained>true</SelfContained>
+    <!-- Le regole di analisi più severe valgono per le librerie; il codice XAML generato non le rispetta tutte. -->
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-default</AnalysisLevel>
+    <MauiEnableXamlCBindingWithSourceCompilation>true</MauiEnableXamlCBindingWithSourceCompilation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#232323" />
+    <!-- La UI React compilata (npm run build:app) finisce in Resources/Raw/wwwroot. -->
+    <MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.Extensions.Logging" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+    <PackageReference Include="Velopack" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodexVtt.Core\CodexVtt.Core.csproj" />
+    <ProjectReference Include="..\CodexVtt.Bridge\CodexVtt.Bridge.csproj" />
+    <ProjectReference Include="..\CodexVtt.Transcription.Whisper\CodexVtt.Transcription.Whisper.csproj" />
+    <ProjectReference Include="..\CodexVtt.Audio.Windows\CodexVtt.Audio.Windows.csproj" />
+    <ProjectReference Include="..\CodexVtt.Models.Download\CodexVtt.Models.Download.csproj" />
+    <ProjectReference Include="..\CodexVtt.Updates\CodexVtt.Updates.csproj" />
+  </ItemGroup>
+
+  <Target Name="EnsureUiBuilt" BeforeTargets="Build" Condition="!Exists('Resources\Raw\wwwroot\index.html')">
+    <Error Text="UI non compilata: eseguire 'npm ci &amp;&amp; npm run build:app' nella cartella ui/." />
+  </Target>
+
+</Project>

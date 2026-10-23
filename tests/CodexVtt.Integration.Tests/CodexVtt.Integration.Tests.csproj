@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\CodexVtt.Core\CodexVtt.Core.csproj" />
+    <ProjectReference Include="..\..\src\CodexVtt.Transcription.Whisper\CodexVtt.Transcription.Whisper.csproj" />
+    <ProjectReference Include="..\..\src\CodexVtt.Audio.Windows\CodexVtt.Audio.Windows.csproj" />
+  </ItemGroup>
+
+</Project>

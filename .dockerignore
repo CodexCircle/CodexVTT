@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+**/node_modules/
+.git/
+docs/
+spike/
+tests/
+ui/dist/
+ui/dist-preview/
+src/CodexVtt.App/
+src/CodexVtt.Server/wwwroot/
+*.md

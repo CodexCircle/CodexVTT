@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- Versione server (ADR-0007): stessa UI servita al browser, core in un processo che può girare come servizio di Windows. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>CodexVtt.Server</RootNamespace>
+    <UserSecretsId>codexvtt-server</UserSecretsId>
+    <!-- Gli SDK più recenti segnalano argomenti banali dei log (un contatore, un nome di tipo): non vale la pena guardarli. -->
+    <NoWarn>$(NoWarn);CA1873</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\CodexVtt.Core\CodexVtt.Core.csproj" />
+    <ProjectReference Include="..\CodexVtt.Bridge\CodexVtt.Bridge.csproj" />
+    <ProjectReference Include="..\CodexVtt.Transcription.Whisper\CodexVtt.Transcription.Whisper.csproj" />
+    <ProjectReference Include="..\CodexVtt.Audio.Windows\CodexVtt.Audio.Windows.csproj" />
+    <ProjectReference Include="..\CodexVtt.Audio.FFmpeg\CodexVtt.Audio.FFmpeg.csproj" />
+    <ProjectReference Include="..\CodexVtt.Models.Download\CodexVtt.Models.Download.csproj" />
+  </ItemGroup>
+
+  <!-- La UI (npm run build:server) finisce in wwwroot. Senza, il server parte ma mostra solo un avviso. -->
+  <ItemGroup>
+    <!-- Anche in bin: la content root è la cartella dell'eseguibile (servizio di Windows). -->
+    <Content Update="wwwroot\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="EnsureServerUiBuilt" BeforeTargets="Publish" Condition="!Exists('wwwroot\index.html')">
+    <Error Text="UI non compilata: eseguire 'npm ci &amp;&amp; npm run build:server' nella cartella ui/." />
+  </Target>
+
+</Project>
