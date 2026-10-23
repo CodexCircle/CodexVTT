@@ -90,7 +90,7 @@ L'app installata cerca le nuove versioni nelle release di GitHub del progetto ([
 
 ## Versioni
 
-Le versioni seguono [SemVer 2.0](https://semver.org/lang/it/) (`X.Y.Z[-fase.N]`), richiesto anche da Velopack. La versione si imposta in `Directory.Build.props` e il tag Git è `v` + versione (es. `v0.1.0-alpha.1`).
+Le versioni seguono [SemVer 2.0](https://semver.org/lang/it/) (`X.Y.Z[-fase.N]`), richiesto anche da Velopack. La versione si imposta in `Directory.Build.props` e il tag Git è `v` + versione (es. `v1.0.0-beta.1`).
 
 | Parte | Quando cambia |
 |---|---|
@@ -99,7 +99,7 @@ Le versioni seguono [SemVer 2.0](https://semver.org/lang/it/) (`X.Y.Z[-fase.N]`)
 | **Z** | Una correzione di bug per versione (0.2.1, 0.2.2, 0.2.3…), ciascuna su una branch dedicata. |
 | **-alpha.N / -beta.N / -rc.N** | Pre-release; senza suffisso la versione è stabile. |
 
-Velopack considera `0.2.1` più recente di `0.1.0`, quindi ogni correzione viene proposta come aggiornamento. Eventuali build di prova (interfacce a tema, funzionalità non ancora integrate) vanno pubblicate su un canale separato (`vpk pack --channel <nome>`).
+Velopack considera `1.0.1` più recente di `1.0.0`, quindi ogni correzione viene proposta come aggiornamento. Eventuali build di prova (interfacce a tema, funzionalità non ancora integrate) vanno pubblicate su un canale separato (`vpk pack --channel <nome>`).
 
 ## Documentazione
 
