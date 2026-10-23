@@ -49,8 +49,13 @@ Invoke-Checked { git fetch origin main --quiet }
 $head = git rev-parse HEAD
 if ($head -ne (git rev-parse origin/main)) { throw 'HEAD non è l''ultimo commit di origin/main: fai git checkout main && git pull.' }
 if (-not $DryRun) {
-    gh release view "v$version" --repo $Repo *> $null
-    if ($LASTEXITCODE -eq 0) { throw "La release v$version esiste già." }
+    # "release not found" va su stderr: con ErrorActionPreference=Stop PowerShell 5.1 lo trasformerebbe in un errore.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    gh release view "v$version" --repo $Repo 2>&1 | Out-Null
+    $exists = $LASTEXITCODE -eq 0
+    $ErrorActionPreference = $previous
+    if ($exists) { throw "La release v$version esiste già." }
 }
 Write-Host "Versione $version, commit $head"
 
