@@ -43,6 +43,16 @@ export function createI18n(locale: Locale) {
     return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
   };
 
+  /** «meno di un minuto», «circa 5 min», «circa 1 h 20 min»: una stima, mai al secondo. */
+  const formatRemaining = (seconds: number) => {
+    const total = Math.max(0, seconds);
+    if (total < 60) return t('etaLessThanMinute');
+    const minutes = Math.round(total / 60);
+    return minutes < 60
+      ? t('etaMinutes', { minutes })
+      : t('etaHours', { hours: Math.floor(minutes / 60), minutes: minutes % 60 });
+  };
+
   const formatDate = (iso: string) => new Date(iso).toLocaleString(numberLocale, { dateStyle: 'medium', timeStyle: 'short' });
 
   /** Data breve per le schede, es. "15 ott". */
@@ -89,7 +99,7 @@ export function createI18n(locale: Locale) {
     return t(`issue_${issue}` as MessageKey);
   };
 
-  return { locale, t, formatBytes, formatMemory, formatDuration, formatDate, formatShortDate, describeError, reason, issueText };
+  return { locale, t, formatBytes, formatMemory, formatDuration, formatRemaining, formatDate, formatShortDate, describeError, reason, issueText };
 }
 
 export type I18n = ReturnType<typeof createI18n>;

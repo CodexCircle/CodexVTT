@@ -490,3 +490,24 @@ describe('Scheda video rilevata', () => {
     expect(await screen.findByText('nessuna compatibile con Vulkan: Whisper usa la CPU')).toBeInTheDocument();
   });
 });
+describe('Tempo rimanente', () => {
+  it('mostra una stima del tempo rimanente mentre trascrive, dopo il primo avanzamento', async () => {
+    const { user } = setup({ installed: ['base'], tick: 60, jobStep: 20 });
+
+    await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
+    await user.click(await screen.findByRole('button', { name: 'Avvia trascrizione' }));
+
+    // Prima non c'è nessuna stima, poi compare quella del core («circa N min»).
+    expect(await screen.findByTestId('eta')).toHaveTextContent('Calcolo del tempo rimanente…');
+    await waitFor(() => expect(screen.getByTestId('eta')).toHaveTextContent(/Tempo rimanente: circa \d+ min/));
+  });
+
+  it('per una coda mostra anche il tempo per tutti i file', async () => {
+    const { user } = setup({ installed: ['base'], batchFiles: ['a.mp3', 'b.mp3', 'c.mp3'], tick: 60, jobStep: 20 });
+
+    await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
+    await user.click(await screen.findByRole('button', { name: 'Avvia coda' }));
+
+    await waitFor(() => expect(screen.getByTestId('eta')).toHaveTextContent(/Per tutta la coda: circa \d+ min/));
+  });
+});

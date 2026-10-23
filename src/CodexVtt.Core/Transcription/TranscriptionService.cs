@@ -20,6 +20,11 @@ public sealed record TranscriptionJob(string JobId, string AudioId, string Model
     internal List<TranscriptSegment> Partial { get; } = [];
 
     internal CancellationTokenSource Cancellation { get; } = new();
+
+    /// <summary>Primo avanzamento reale (dopo caricamento del modello): da qui si misura la velocità per il tempo rimanente.</summary>
+    internal long? BaselineTimestamp { get; set; }
+
+    internal TimeSpan BaselineProcessed { get; set; }
 }
 
 /// <summary>
@@ -33,6 +38,7 @@ public sealed partial class TranscriptionService : IDisposable
     private readonly ITranscriptionEngine _engine;
     private readonly AudioChunker _chunker;
     private readonly ILogger<TranscriptionService> _logger;
+    private readonly TimeProvider _time;
     private readonly ConcurrentDictionary<string, TranscriptionJob> _jobs = new();
     private readonly SemaphoreSlim _single = new(1, 1);
     private TranscriptionJob? _current;
@@ -42,8 +48,10 @@ public sealed partial class TranscriptionService : IDisposable
         AudioLibrary audio,
         ITranscriptionEngine engine,
         ILogger<TranscriptionService> logger,
-        AudioChunker? chunker = null)
+        AudioChunker? chunker = null,
+        TimeProvider? timeProvider = null)
     {
+        _time = timeProvider ?? TimeProvider.System;
         _models = models;
         _audio = audio;
         _engine = engine;
@@ -230,16 +238,45 @@ public sealed partial class TranscriptionService : IDisposable
         LogFailed(error, job.JobId, error.Code);
     }
 
+    /// <summary>Servono almeno questi secondi, sia di audio sia reali, prima di fidarsi della velocità misurata.</summary>
+    private static readonly TimeSpan MinEstimateWindow = TimeSpan.FromSeconds(2);
+
     private void Report(TranscriptionJob job, JobStatus status, int percent, TimeSpan processed, TimeSpan total)
     {
+        TimeSpan? remaining = null;
+        double? speed = null;
         lock (job.Partial)
         {
             if (job.Status is JobStatus.Completed or JobStatus.Cancelled or JobStatus.Failed && job.Status != status)
                 return;
             job.Status = status;
+
+            if (status == JobStatus.Completed)
+            {
+                remaining = TimeSpan.Zero;
+            }
+            else if (status == JobStatus.Transcribing && processed > TimeSpan.Zero)
+            {
+                var now = _time.GetTimestamp();
+                if (job.BaselineTimestamp is not { } start)
+                {
+                    job.BaselineTimestamp = now;
+                    job.BaselineProcessed = processed;
+                }
+                else
+                {
+                    var elapsed = _time.GetElapsedTime(start, now);
+                    var done = processed - job.BaselineProcessed;
+                    if (elapsed >= MinEstimateWindow && done >= MinEstimateWindow)
+                    {
+                        speed = done.TotalSeconds / elapsed.TotalSeconds;
+                        remaining = TimeSpan.FromSeconds(Math.Max(0, (total - processed).TotalSeconds / speed.Value));
+                    }
+                }
+            }
         }
 
-        Progress?.Invoke(new JobProgress(job.JobId, status, percent, processed, total));
+        Progress?.Invoke(new JobProgress(job.JobId, status, percent, processed, total, remaining, speed));
     }
 
     private static int Percent(TimeSpan processed, TimeSpan total) =>

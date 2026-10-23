@@ -191,6 +191,10 @@ export interface JobProgress {
   percent: number;
   processed: number;
   total: number;
+  /** Secondi stimati alla fine del file; assente finché è troppo presto per stimarli. */
+  remaining?: number;
+  /** Secondi di audio trascritti per secondo reale (2 = il doppio del tempo reale). */
+  speed?: number;
 }
 
 export interface DownloadProgress {

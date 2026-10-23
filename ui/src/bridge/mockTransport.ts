@@ -222,7 +222,10 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         return;
       }
       percent += options.jobStep ?? 25;
-      event('transcription.progress', { jobId, status: 'transcribing', percent: Math.min(percent, 99), processed: 754.2 * (percent / 100), total: 754.2 });
+      const processed = 754.2 * (percent / 100);
+      // Come il core: nessuna stima al primo avanzamento, poi la velocità misurata (qui 2× il tempo reale).
+      const estimate = percent > (options.jobStep ?? 25) ? { speed: 2, remaining: Math.max(0, (754.2 - processed) / 2) } : {};
+      event('transcription.progress', { jobId, status: 'transcribing', percent: Math.min(percent, 99), processed, total: 754.2, ...estimate });
       if (percent < 100) later(advance);
       else {
         const result: TranscriptionResult = {

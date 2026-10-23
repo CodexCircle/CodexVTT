@@ -130,3 +130,21 @@ public class GpuTests
         Assert.Equal(devices.Count > 0, global::CodexVtt.Transcription.Whisper.WhisperEngine.IsVulkanGpuPresent());
     }
 }
+public class ProgressProtocolTests
+{
+    [Fact]
+    public void Remaining_time_and_speed_travel_to_the_ui_in_seconds_and_are_left_out_when_unknown()
+    {
+        var known = System.Text.Json.JsonSerializer.Serialize(
+            new JobProgress("j1", JobStatus.Transcribing, 50, TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(8), TimeSpan.FromSeconds(4.5), 1.25),
+            CodexVtt.Bridge.BridgeProtocol.JsonOptions);
+        var unknown = System.Text.Json.JsonSerializer.Serialize(
+            new JobProgress("j1", JobStatus.Transcribing, 10, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(8)),
+            CodexVtt.Bridge.BridgeProtocol.JsonOptions);
+
+        Assert.Contains("\"remaining\":4.5", known, StringComparison.Ordinal);
+        Assert.Contains("\"speed\":1.25", known, StringComparison.Ordinal);
+        Assert.DoesNotContain("remaining", unknown, StringComparison.Ordinal);
+        Assert.DoesNotContain("speed", unknown, StringComparison.Ordinal);
+    }
+}

@@ -72,4 +72,6 @@ public enum JobStatus
     Failed,
 }
 
-public sealed record JobProgress(string JobId, JobStatus Status, int Percent, TimeSpan Processed, TimeSpan Total);
+/// <param name="Remaining">Tempo stimato alla fine del file, dalla velocità misurata finora; assente finché è troppo presto per stimarlo.</param>
+/// <param name="Speed">Secondi di audio trascritti per secondo reale (2 = il doppio del tempo reale); serve a stimare anche i file in coda.</param>
+public sealed record JobProgress(string JobId, JobStatus Status, int Percent, TimeSpan Processed, TimeSpan Total, TimeSpan? Remaining = null, double? Speed = null);

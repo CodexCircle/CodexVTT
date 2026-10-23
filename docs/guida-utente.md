@@ -42,7 +42,7 @@ Se il PC ha una scheda video NVIDIA, AMD o Intel con i driver aggiornati, Whispe
 
 1. Sezione **Trascrivi** → **Scegli un file audio…** (WAV, MP3, M4A, AAC, WMA, FLAC; OGG/Opus se il codec è installato), fino a **4 ore** di durata.
 2. Lascia "Rilevamento automatico" oppure scegli la lingua.
-3. Premi **Avvia trascrizione**. Puoi annullare in qualunque momento.
+3. Premi **Avvia trascrizione**. Puoi annullare in qualunque momento. Durante il lavoro vedi la percentuale e il **tempo rimanente**: è una stima calcolata dalla velocità reale del tuo PC con quel modello, compare dopo qualche secondo e con una coda indica anche il tempo per tutti i file.
 4. Leggi il testo o la vista per segmenti con i tempi. Sotto il titolo trovi il modello usato.
 
 Whisper può sbagliare o inventare frasi su silenzi o musica: ricontrolla i passaggi importanti.

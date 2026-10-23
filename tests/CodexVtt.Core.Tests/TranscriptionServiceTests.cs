@@ -234,6 +234,89 @@ public sealed class TranscriptionServiceTests : IDisposable
         Assert.True(_engine.Disposed);
     }
 
+    [Fact]
+    public async Task Remaining_time_comes_from_the_measured_speed_and_is_zero_when_done()
+    {
+        await InstallModelAsync();
+        var clock = new ManualTime();
+        using var service = new TranscriptionService(_store, _audio, new SteppingEngine(clock), NullLogger<TranscriptionService>.Instance,
+            new AudioChunker(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1)), clock);
+        var reports = new List<JobProgress>();
+        service.Progress += reports.Add;
+
+        // 8 secondi di audio, 2 secondi reali ogni 25%: velocità 1 (tempo reale).
+        await service.RunToCompletionAsync(RegisterAudio(8), "base", new TranscriptionOptions("it"), CancellationToken.None);
+
+        var transcribing = reports.Where(r => r.Status == JobStatus.Transcribing).ToList();
+        Assert.Null(transcribing[0].Remaining);
+        Assert.Null(transcribing[0].Speed);
+        Assert.Equal(1.0, transcribing[1].Speed!.Value, 3);
+        Assert.Equal(TimeSpan.FromSeconds(4), transcribing[1].Remaining);
+        Assert.Equal(TimeSpan.FromSeconds(2), transcribing[2].Remaining);
+        Assert.Equal(TimeSpan.Zero, reports[^1].Remaining);
+        Assert.Equal(JobStatus.Completed, reports[^1].Status);
+        // Prima che il motore abbia prodotto avanzamento non si inventa nessuna stima.
+        Assert.All(reports.Where(r => r.Status is JobStatus.Queued or JobStatus.Decoding), r => Assert.Null(r.Remaining));
+    }
+
+    [Fact]
+    public async Task No_estimate_is_given_when_progress_is_too_short_to_trust()
+    {
+        await InstallModelAsync();
+        var clock = new ManualTime();
+        using var service = new TranscriptionService(_store, _audio, new SteppingEngine(clock, secondsPerStep: 0.5), NullLogger<TranscriptionService>.Instance,
+            new AudioChunker(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1)), clock);
+        var reports = new List<JobProgress>();
+        service.Progress += reports.Add;
+
+        await service.RunToCompletionAsync(RegisterAudio(8), "base", new TranscriptionOptions("it"), CancellationToken.None);
+
+        // Mezzo secondo reale per passo: dopo 1,5 secondi non c'è ancora una finestra di 2 secondi.
+        Assert.All(reports.Where(r => r.Status == JobStatus.Transcribing).Take(3), r => Assert.Null(r.Remaining));
+    }
+
+    private sealed class ManualTime : TimeProvider
+    {
+        private long _milliseconds;
+
+        public override long TimestampFrequency => 1000;
+
+        public override long GetTimestamp() => _milliseconds;
+
+        public void Advance(double seconds) => _milliseconds += (long)(seconds * 1000);
+    }
+
+    private sealed class SteppingEngine(ManualTime clock, double secondsPerStep = 2) : ITranscriptionEngine
+    {
+        public Task<ITranscriptionSession> LoadAsync(ModelDescriptor model, string modelPath, CancellationToken ct) =>
+            Task.FromResult<ITranscriptionSession>(new Session(clock, secondsPerStep));
+
+        private sealed class Session(ManualTime clock, double secondsPerStep) : ITranscriptionSession
+        {
+            public string Runtime => "Stepping";
+
+            public string? DetectedLanguage => null;
+
+            public async IAsyncEnumerable<TranscriptSegment> TranscribeAsync(
+                ReadOnlyMemory<float> samples,
+                TranscriptionOptions options,
+                IProgress<int>? progress,
+                [EnumeratorCancellation] CancellationToken ct)
+            {
+                await Task.CompletedTask;
+                foreach (var percent in new[] { 25, 50, 75 })
+                {
+                    progress?.Report(percent);
+                    clock.Advance(secondsPerStep);
+                }
+
+                yield return new TranscriptSegment(TimeSpan.Zero, TimeSpan.FromSeconds(samples.Length / 16000.0), "testo", 0.9f);
+            }
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
     private sealed class FakeEngine : ITranscriptionEngine
     {
         public int ChunkCount { get; private set; }

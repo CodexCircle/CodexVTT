@@ -7,7 +7,7 @@ import { ResultView } from './ResultView';
 const manageModels = '__manage';
 
 export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onOpenModels: () => void }) {
-  const { t, formatBytes, formatDuration, describeError } = useI18n();
+  const { t, formatBytes, formatDuration, formatRemaining, describeError } = useI18n();
   const [language, setLanguage] = useState(app.settings?.language ?? 'auto');
   useEffect(() => {
     if (app.settings?.language) setLanguage(app.settings.language);
@@ -41,6 +41,14 @@ export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onO
 
   const showMascot = app.settings?.showMascot !== false;
   const percent = app.progress?.percent ?? 0;
+  // Tempo rimanente: stima del core dalla velocità misurata. Per la coda si aggiungono i file ancora da fare,
+  // alla stessa velocità (stesso modello): è un'indicazione, non una promessa.
+  const remaining = app.progress?.remaining;
+  const queuedSeconds = app.queue.filter((i) => i.status === 'queued' && i.audioId).reduce((sum, i) => sum + (i.info?.duration ?? 0), 0);
+  const queueRemaining =
+    app.queueRunning && remaining !== undefined && app.progress?.speed && queuedSeconds > 0
+      ? remaining + queuedSeconds / app.progress.speed
+      : undefined;
 
   return (
     <section aria-labelledby="transcribe-title" className="panel">
@@ -156,6 +164,13 @@ export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onO
                     total: formatDuration(app.progress.total),
                   })}
             </span>
+            {app.progress.status === 'transcribing' && (
+              <span className="muted eta" data-testid="eta">
+                {' · '}
+                {remaining !== undefined ? t('etaRemaining', { time: formatRemaining(remaining) }) : t('etaCalculating')}
+                {queueRemaining !== undefined && ` · ${t('etaQueue', { time: formatRemaining(queueRemaining) })}`}
+              </span>
+            )}
           </div>
         ) : (
           <div className="stage__status">
