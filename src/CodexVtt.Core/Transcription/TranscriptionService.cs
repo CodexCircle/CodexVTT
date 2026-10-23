@@ -25,6 +25,18 @@ public sealed record TranscriptionJob(string JobId, string AudioId, string Model
     internal long? BaselineTimestamp { get; set; }
 
     internal TimeSpan BaselineProcessed { get; set; }
+
+    // --- pausa (vedi TranscriptionService.Pause): lo stato è protetto da PauseGate
+    internal Lock PauseGate { get; } = new();
+
+    internal bool PauseRequested { get; set; }
+
+    internal TaskCompletionSource? ResumeSignal { get; set; }
+
+    /// <summary>Chiamata corrente al motore: annullandola si ferma davvero il calcolo.</summary>
+    internal CancellationTokenSource? SliceCancellation { get; set; }
+
+    internal long PausedAtTimestamp { get; set; }
 }
 
 /// <summary>
@@ -143,6 +155,43 @@ public sealed partial class TranscriptionService : IDisposable
             job.Cancellation.Cancel();
     }
 
+    /// <summary>
+    /// Mette in pausa un job in corso. Il calcolo si ferma subito (si annulla la chiamata al motore, quindi la CPU torna
+    /// libera); i segmenti già prodotti restano e alla ripresa si riparte dalla fine dell'ultimo. Il modello resta in memoria.
+    /// </summary>
+    public void Pause(string jobId)
+    {
+        var job = Get(jobId);
+        lock (job.PauseGate)
+        {
+            if (job.PauseRequested || job.Status is JobStatus.Completed or JobStatus.Cancelled or JobStatus.Failed)
+                return;
+            job.PauseRequested = true;
+            job.PausedAtTimestamp = _time.GetTimestamp();
+            job.ResumeSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            job.SliceCancellation?.Cancel();
+        }
+    }
+
+    /// <summary>Riprende un job in pausa. Il tempo trascorso in pausa non conta nella stima del tempo rimanente.</summary>
+    public void Resume(string jobId)
+    {
+        var job = Get(jobId);
+        lock (job.PauseGate)
+        {
+            if (!job.PauseRequested)
+                return;
+            job.PauseRequested = false;
+            lock (job.Partial)
+            {
+                if (job.BaselineTimestamp is { } baseline)
+                    job.BaselineTimestamp = baseline + (_time.GetTimestamp() - job.PausedAtTimestamp);
+            }
+
+            job.ResumeSignal?.TrySetResult();
+        }
+    }
+
     private static readonly TimeSpan MinCheckedDuration = TimeSpan.FromSeconds(5);
     private const double MinDecodedFraction = 0.5;
 
@@ -171,20 +220,71 @@ public sealed partial class TranscriptionService : IDisposable
             foreach (var chunk in _chunker.Split(reader))
             {
                 ct.ThrowIfCancellationRequested();
-                var chunkProgress = new SyncProgress<int>(p =>
+                // Dentro il blocco si può ripartire da un punto qualsiasi dopo una pausa: «from» è il primo campione ancora da fare.
+                var from = 0;
+                while (from < chunk.Samples.Length)
                 {
-                    var processed = chunk.Offset + (chunk.Duration * (p / 100d));
-                    Report(job, JobStatus.Transcribing, Percent(processed, info.Duration), processed, info.Duration);
-                });
+                    await WaitWhilePausedAsync(job, chunk.Offset + SamplesToTime(from), info.Duration, ct).ConfigureAwait(false);
 
-                await foreach (var segment in session.TranscribeAsync(chunk.Samples, options, chunkProgress, ct).ConfigureAwait(false))
-                {
-                    // [BLANK_AUDIO], [MUSIC]…: marcatori di Whisper, non parlato.
-                    if (SpecialTokens.IsMarker(segment.Text))
-                        continue;
-                    var shifted = segment with { Start = segment.Start + chunk.Offset, End = segment.End + chunk.Offset };
-                    lock (job.Partial)
-                        job.Partial.Add(shifted);
+                    var sliceOffset = chunk.Offset + SamplesToTime(from);
+                    var slice = chunk.Samples.AsMemory(from);
+                    var sliceDuration = SamplesToTime(slice.Length);
+                    var chunkProgress = new SyncProgress<int>(p =>
+                    {
+                        var processed = sliceOffset + (sliceDuration * (p / 100d));
+                        Report(job, JobStatus.Transcribing, Percent(processed, info.Duration), processed, info.Duration);
+                    });
+
+                    using var sliceCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                    lock (job.PauseGate)
+                    {
+                        job.SliceCancellation = sliceCts;
+                        if (job.PauseRequested)
+                            sliceCts.Cancel();
+                    }
+
+                    var lastEnd = TimeSpan.Zero;
+                    var produced = false;
+                    try
+                    {
+                        await foreach (var segment in session.TranscribeAsync(slice, options, chunkProgress, sliceCts.Token).ConfigureAwait(false))
+                        {
+                            produced = true;
+                            lastEnd = segment.End > lastEnd ? segment.End : lastEnd;
+                            // [BLANK_AUDIO], [MUSIC]…: marcatori di Whisper, non parlato.
+                            if (SpecialTokens.IsMarker(segment.Text))
+                                continue;
+                            var shifted = segment with { Start = segment.Start + sliceOffset, End = segment.End + sliceOffset };
+                            lock (job.Partial)
+                                job.Partial.Add(shifted);
+                        }
+
+                    }
+                    catch (OperationCanceledException) when (!ct.IsCancellationRequested && sliceCts.IsCancellationRequested)
+                    {
+                        // Fermato da una pausa: lo gestisce il controllo qui sotto.
+                    }
+                    finally
+                    {
+                        lock (job.PauseGate)
+                            job.SliceCancellation = null;
+                    }
+
+                    ct.ThrowIfCancellationRequested();
+                    if (sliceCts.IsCancellationRequested)
+                    {
+                        // Pausa (anche se il motore ha chiuso senza eccezione): si riparte dalla fine dell'ultimo segmento
+                        // completo, o dall'inizio della fetta se non ne è uscito nessuno. Il lavoro già consegnato non si rifà.
+                        if (produced)
+                            from = Math.Min(chunk.Samples.Length, from + Math.Max(1, TimeToSamples(lastEnd)));
+                        // Un resto di pochi centesimi di secondo non è parlato: non si rilancia il motore per quello.
+                        if (chunk.Samples.Length - from < TimeToSamples(TimeSpan.FromSeconds(0.3)))
+                            from = chunk.Samples.Length;
+                    }
+                    else
+                    {
+                        from = chunk.Samples.Length;
+                    }
                 }
 
                 decoded += chunk.Duration;
@@ -236,6 +336,26 @@ public sealed partial class TranscriptionService : IDisposable
         job.Error = error;
         Report(job, JobStatus.Failed, 0, TimeSpan.Zero, info.Duration);
         LogFailed(error, job.JobId, error.Code);
+    }
+
+    private static TimeSpan SamplesToTime(int samples) => TimeSpan.FromSeconds((double)samples / AudioConstants.WhisperSampleRate);
+
+    private static int TimeToSamples(TimeSpan time) => (int)Math.Round(time.TotalSeconds * AudioConstants.WhisperSampleRate);
+
+    /// <summary>Se è stata chiesta una pausa, lo comunica e aspetta la ripresa (o l'annullamento).</summary>
+    private async Task WaitWhilePausedAsync(TranscriptionJob job, TimeSpan processed, TimeSpan total, CancellationToken ct)
+    {
+        Task? wait;
+        lock (job.PauseGate)
+            wait = job.PauseRequested ? job.ResumeSignal?.Task : null;
+        if (wait is null)
+            return;
+
+        Report(job, JobStatus.Paused, Percent(processed, total), processed, total);
+        LogPaused(job.JobId);
+        await wait.WaitAsync(ct).ConfigureAwait(false);
+        Report(job, JobStatus.Transcribing, Percent(processed, total), processed, total);
+        LogResumed(job.JobId);
     }
 
     /// <summary>Servono almeno questi secondi, sia di audio sia reali, prima di fidarsi della velocità misurata.</summary>
@@ -291,6 +411,12 @@ public sealed partial class TranscriptionService : IDisposable
     // I log non contengono testo trascritto né percorsi (ADR-0006).
     [LoggerMessage(Level = LogLevel.Information, Message = "Trascrizione {JobId} completata con {ModelId} ({Runtime}): audio {Duration}, tempo {Elapsed}")]
     private partial void LogCompleted(string jobId, string modelId, string runtime, TimeSpan duration, TimeSpan elapsed);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Trascrizione {JobId} in pausa")]
+    private partial void LogPaused(string jobId);
+
+    [LoggerMessage(Level = LogLevel.Information, Message = "Trascrizione {JobId} ripresa")]
+    private partial void LogResumed(string jobId);
 
     [LoggerMessage(Level = LogLevel.Information, Message = "Trascrizione {JobId} annullata")]
     private partial void LogCancelled(string jobId);

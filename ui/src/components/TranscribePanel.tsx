@@ -14,6 +14,7 @@ export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onO
   }, [app.settings?.language]);
 
   const running = Boolean(app.jobId) || app.progress?.status === 'queued' || app.queueRunning;
+  const paused = running && app.progress?.status === 'paused';
   const inQueue = app.queue.length > 0;
   const pending = app.queue.filter((i) => i.status === 'queued' || (i.status === 'failed' && i.audioId)).length;
   const queuedDuration = app.queue.reduce((sum, i) => sum + (i.info?.duration ?? 0), 0);
@@ -60,7 +61,7 @@ export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onO
         {showMascot && (
           <div className="stage__mascot">
             <Mascot
-              activity={running ? 'working' : 'idle'}
+              activity={running && !paused ? 'working' : 'idle'}
               character={app.settings?.mascot}
               headphones={ready}
               seated
@@ -116,9 +117,25 @@ export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onO
           </button>
 
           {running ? (
-            <button type="button" className="bar__action secondary" onClick={() => void app.cancel()}>
-              {t('cancel')}
-            </button>
+            <>
+              {paused ? (
+                <button type="button" className="bar__action primary" onClick={() => void app.resume()}>
+                  {t('resume')}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="bar__action secondary"
+                  disabled={app.progress?.status === 'queued' || app.progress?.status === 'decoding'}
+                  onClick={() => void app.pause()}
+                >
+                  {t('pause')}
+                </button>
+              )}
+              <button type="button" className="bar__action secondary" onClick={() => void app.cancel()}>
+                {t('cancel')}
+              </button>
+            </>
           ) : inQueue ? (
             pending > 0 && (
               <button type="button" className="bar__action primary" disabled={needsLanguage} onClick={() => app.startQueue(language)}>
@@ -154,7 +171,7 @@ export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onO
 
         {running && app.progress ? (
           <div className="stage__status" aria-live="polite">
-            <strong>{t('listening')}</strong>{' '}
+            <strong>{paused ? t('pausedTitle') : t('listening')}</strong>{' '}
             <span className="muted">
               {app.progress.status === 'queued' || app.progress.status === 'decoding'
                 ? t('preparing')

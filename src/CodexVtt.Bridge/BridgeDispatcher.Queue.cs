@@ -162,7 +162,7 @@ public sealed partial class BridgeDispatcher
             try
             {
                 // V1: nessuna traduzione (issue #17), come per le trascrizioni singole.
-                var job = _transcription.Start(item.AudioId!, _queueModelId!, new TranscriptionOptions(_queueLanguage ?? "auto", Translate: false));
+                var job = _transcription.Start(item.AudioId!, _queueModelId!, new TranscriptionOptions(_queueLanguage ?? "auto", Translate: false, Threads: ThreadLimit()));
                 _queueJobId = job.JobId;
                 _queue[index] = item with { Status = QueueItemStatus.Working, Error = null, JobId = job.JobId };
                 return;
@@ -186,7 +186,9 @@ public sealed partial class BridgeDispatcher
         return view;
     }
 
-    private QueueView Snapshot() => new([.. _queue], _queueRunning, _queueJobId);
+    // Con l'avanzamento del file in corso, così chi riapre la pagina ritrova subito percentuale, pausa e tempo rimanente.
+    private QueueView Snapshot() =>
+        new([.. _queue], _queueRunning, _queueJobId, _lastProgress is { } last && last.JobId == _queueJobId ? last : null);
 
     private string NextKey() => $"q{++_queueSeq}";
 }
@@ -210,7 +212,7 @@ public sealed record QueueItem(
     string? HistoryId = null,
     string? JobId = null);
 
-public sealed record QueueView(IReadOnlyList<QueueItem> Items, bool Running, string? JobId);
+public sealed record QueueView(IReadOnlyList<QueueItem> Items, bool Running, string? JobId, JobProgress? Progress = null);
 
 public sealed record QueueAddRequest(IReadOnlyList<string>? AudioIds, IReadOnlyList<FailedAudio>? Failed);
 

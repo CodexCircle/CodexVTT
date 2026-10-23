@@ -22,6 +22,7 @@ using CodexVtt.Transcription.Whisper;
 // --models-dir  cartella con modelli già scaricati (per non riscaricarli)
 // --download scarica i modelli mancanti con lo stesso downloader dell'app
 // --gpu      prova il runtime GPU per Whisper
+// --cpu      limite di CPU in percentuale dei core (10-100, default 100): misura anche la CPU realmente usata
 // --out      scrive i risultati in un file JSON
 var options = Options.Parse(args);
 if (options.Audio is null)
@@ -95,15 +96,19 @@ foreach (var id in ids)
         var reference = File.Exists(Path.ChangeExtension(file, ".txt")) ? File.ReadAllText(Path.ChangeExtension(file, ".txt")) : null;
         var language = options.Language;
         var started = Stopwatch.StartNew();
+        var cpuBefore = Process.GetCurrentProcess().TotalProcessorTime;
         try
         {
-            var result = await service.RunToCompletionAsync(handle.AudioId, id, new TranscriptionOptions(language, Translate: false), CancellationToken.None);
+            var threads = CodexVtt.Core.Transcription.CpuLimit.Threads(options.Cpu, Environment.ProcessorCount);
+            var result = await service.RunToCompletionAsync(handle.AudioId, id, new TranscriptionOptions(language, Translate: false, Threads: threads), CancellationToken.None);
             started.Stop();
+            // CPU media usata dal processo durante il file, in percentuale della capacità totale di tutti i core.
+            var cpuPercent = (Process.GetCurrentProcess().TotalProcessorTime - cpuBefore).TotalSeconds / (started.Elapsed.TotalSeconds * Environment.ProcessorCount) * 100;
             var wer = reference is null ? (double?)null : WordErrorRate.Compute(reference, result.Text);
             var row = new Row(id, Path.GetFileName(file), result.Model.Runtime, handle.Info.Duration.TotalSeconds, started.Elapsed.TotalSeconds,
                 started.Elapsed.TotalSeconds / handle.Info.Duration.TotalSeconds, wer, result.Text, null);
             results.Add(row);
-            Console.WriteLine($"{id,-32} {row.File,-24} {row.Runtime,-20} {row.AudioSeconds,6:F1}s in {row.ElapsedSeconds,6:F1}s (x{row.RealTimeFactor:F2}){(wer is { } w ? $"  WER {w * 100:F1}%  affidabilità {100 - (w * 100):F1}%" : "")}");
+            Console.WriteLine($"{id,-32} {row.File,-24} {row.Runtime,-20} {row.AudioSeconds,6:F1}s in {row.ElapsedSeconds,6:F1}s (x{row.RealTimeFactor:F2})  CPU {cpuPercent:F0}% (limite {options.Cpu}%, thread {(threads?.ToString() ?? "predefiniti")}){(wer is { } w ? $"  WER {w * 100:F1}%  affidabilità {100 - (w * 100):F1}%" : "")}");
             Console.WriteLine($"    {Trim(result.Text)}");
         }
         catch (Exception ex)
@@ -134,12 +139,12 @@ static string Trim(string text) => text.Length <= 220 ? text : text[..220] + "�
 
 internal sealed record Row(string Model, string File, string Runtime, double AudioSeconds, double ElapsedSeconds, double RealTimeFactor, double? Wer, string Text, string? Error);
 
-internal sealed record Options(string? Audio, string Models, string Language, string? Data, string? ModelsDir, bool Download, bool Gpu, string? Out)
+internal sealed record Options(string? Audio, string Models, string Language, string? Data, string? ModelsDir, bool Download, bool Gpu, string? Out, int Cpu)
 {
     public static Options Parse(string[] args)
     {
         string? Get(string name) => Array.IndexOf(args, name) is var i and >= 0 && i + 1 < args.Length ? args[i + 1] : null;
         return new Options(Get("--audio"), Get("--models") ?? "all", Get("--language") ?? "it", Get("--data"), Get("--models-dir"),
-            args.Contains("--download"), args.Contains("--gpu"), Get("--out"));
+            args.Contains("--download"), args.Contains("--gpu"), Get("--out"), int.TryParse(Get("--cpu"), out var cpu) ? cpu : 100);
     }
 }

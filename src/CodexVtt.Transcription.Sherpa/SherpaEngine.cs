@@ -129,6 +129,18 @@ public sealed class SherpaEngine : ITranscriptionEngine
             return "auto";
         }
 
+        /// <summary>
+        /// Thread di ONNX Runtime. Senza limite: tutti i core tranne uno (al massimo 8). Con il limite di CPU scelto
+        /// dall'utente: quelli richiesti, ma per Parakeet uno in meno, perché il ciclo di decodifica del trasduttore
+        /// gira su un thread in più (misurato: 3 thread richiesti usavano il 63% di 6 core invece del 50%).
+        /// </summary>
+        internal static int ThreadsFor(string engine, int? requested)
+        {
+            if (requested is not { } n)
+                return Math.Clamp(Environment.ProcessorCount - 1, 1, 8);
+            return engine == Transducer && n > 1 ? n - 1 : n;
+        }
+
         private OfflineRecognizer Recognizer(string language, int? threads)
         {
             if (_recognizer is not null && _language == language)
@@ -138,7 +150,7 @@ public sealed class SherpaEngine : ITranscriptionEngine
 
             try
             {
-                var config = BuildConfig(model.Engine, folder, language, threads ?? Math.Clamp(Environment.ProcessorCount - 1, 1, 8));
+                var config = BuildConfig(model.Engine, folder, language, ThreadsFor(model.Engine, threads));
                 _recognizer = new OfflineRecognizer(config);
                 _language = language;
                 return _recognizer;

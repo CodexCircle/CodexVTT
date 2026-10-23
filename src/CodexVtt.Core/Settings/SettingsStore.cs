@@ -37,6 +37,12 @@ public sealed record AppSettings
     public bool AutoCheckUpdates { get; init; }
 
     /// <summary>
+    /// Quanta CPU possono usare i motori, in percentuale dei core logici (10-100). Si traduce nel numero di thread:
+    /// con il 50% su 8 core si usano al più 4 thread. 100 = nessun limite. Vale dalla prossima trascrizione.
+    /// </summary>
+    public int CpuLimitPercent { get; init; } = 100;
+
+    /// <summary>
     /// Usa la scheda video (Vulkan) per Whisper quando il PC la supporta. Di default sì, con ripiego automatico sulla CPU;
     /// si applica al prossimo avvio. Parakeet e Canary girano sempre sulla CPU.
     /// </summary>

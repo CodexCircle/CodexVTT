@@ -136,6 +136,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
     collectionId: collectionOf(id)?.id ?? null,
   });
   const cancelled = new Set<string>();
+  const paused = new Set<string>();
   let job = 0;
   let audioSeq = 0;
   const audioNames = new Map<string, string>([['audio-1', 'riunione.mp3']]);
@@ -216,11 +217,23 @@ export function createMockTransport(options: MockOptions = {}): Transport {
       throw { code: 'model_not_installed', message: 'Il modello non è installato.' };
     }
     let percent = 0;
+    let announcedPause = false;
     const advance = () => {
       if (cancelled.has(jobId)) {
+        paused.delete(jobId);
         done('cancelled');
         return;
       }
+      if (paused.has(jobId)) {
+        // In pausa non avanza nulla: lo dice una volta e poi aspetta la ripresa.
+        if (!announcedPause) {
+          announcedPause = true;
+          event('transcription.progress', { jobId, status: 'paused', percent: Math.min(percent, 99), processed: 754.2 * (percent / 100), total: 754.2 });
+        }
+        later(advance);
+        return;
+      }
+      announcedPause = false;
       percent += options.jobStep ?? 25;
       const processed = 754.2 * (percent / 100);
       // Come il core: nessuna stima al primo avanzamento, poi la velocità misurata (qui 2× il tempo reale).
@@ -400,6 +413,12 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         if (working) updateQueueItem(working.key, { status: 'queued', jobId: undefined });
         return queueChanged();
       }
+      case 'transcription.pause':
+        paused.add(String(payload.jobId));
+        return { pausing: true };
+      case 'transcription.resume':
+        paused.delete(String(payload.jobId));
+        return { resumed: true };
       case 'transcription.cancel':
         cancelled.add(String(payload.jobId));
         return { cancelling: true };

@@ -321,6 +321,32 @@ public sealed class BridgeDispatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task The_cpu_limit_is_validated_saved_and_turned_into_engine_threads()
+    {
+        Assert.Equal(100, Ok(await Call("settings.get")).GetProperty("cpuLimitPercent").GetInt32());
+        Assert.Equal(ErrorCodes.InvalidRequest, ErrorCode(await Call("settings.set", new { language = "it", showMascot = true, cpuLimitPercent = 5 })));
+        Assert.Equal(ErrorCodes.InvalidRequest, ErrorCode(await Call("settings.set", new { language = "it", showMascot = true, cpuLimitPercent = 150 })));
+        Ok(await Call("settings.set", new { language = "it", showMascot = true, cpuLimitPercent = 50 }));
+        Assert.Equal(50, Ok(await Call("settings.get")).GetProperty("cpuLimitPercent").GetInt32());
+
+        _shell.NextOpen = _dir.File("base.bin", ModelContent);
+        Ok(await Call("models.import"));
+        _shell.NextOpen = _dir.File("limite.wav", TestData.Wav(16000, 1, 1));
+        var audioId = Ok(await Call("audio.pick")).GetProperty("audioId").GetString();
+        Ok(await Call("transcription.start", new { audioId, modelId = "base", language = "it" }));
+        await _shell.WaitForEventAsync("transcription.completed");
+
+        Assert.Equal(CodexVtt.Core.Transcription.CpuLimit.Threads(50, Environment.ProcessorCount), EchoEngine.LastThreads);
+    }
+
+    [Fact]
+    public async Task Pausing_an_unknown_job_is_a_typed_error()
+    {
+        Assert.Equal(ErrorCodes.TranscriptionNotFound, ErrorCode(await Call("transcription.pause", new { jobId = "boh" })));
+        Assert.Equal(ErrorCodes.TranscriptionNotFound, ErrorCode(await Call("transcription.resume", new { jobId = "boh" })));
+    }
+
+    [Fact]
     public async Task Queue_runs_every_file_in_the_core_without_the_ui()
     {
         _shell.NextOpen = _dir.File("base.bin", ModelContent);
@@ -515,6 +541,9 @@ public sealed class BridgeDispatcherTests : IDisposable
 
     private sealed class EchoEngine : ITranscriptionEngine
     {
+        /// <summary>Thread chiesti dall'ultima trascrizione (null = nessun limite).</summary>
+        public static int? LastThreads { get; set; }
+
         public Task<ITranscriptionSession> LoadAsync(ModelDescriptor model, string modelPath, CancellationToken ct) =>
             Task.FromResult<ITranscriptionSession>(new Session());
 
@@ -531,6 +560,7 @@ public sealed class BridgeDispatcherTests : IDisposable
                 [EnumeratorCancellation] CancellationToken ct)
             {
                 await Task.Yield();
+                LastThreads = options.Threads;
                 progress?.Report(100);
                 DetectedLanguage = options.Language;
                 yield return new TranscriptSegment(TimeSpan.Zero, TimeSpan.FromSeconds(samples.Length / 16000.0), $"echo {options.Language}", 1);

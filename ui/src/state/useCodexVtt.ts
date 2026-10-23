@@ -105,6 +105,7 @@ export function useCodexVtt(client: BridgeClient) {
         setSettings(s);
         setUpdates(u);
         setQueueState(q ?? emptyQueue);
+        if (q?.running && q.progress) setProgress(q.progress);
         if (active) {
           setAudio(active.audio);
           setJobId(active.jobId);
@@ -322,6 +323,17 @@ export function useCodexVtt(client: BridgeClient) {
         return started;
       }).then((r) => {
         if (r === undefined) setProgress(undefined);
+      }),
+    // Pausa vera: il motore si ferma e la CPU torna libera; con una coda si ferma il file in corso, gli altri aspettano.
+    pause: () =>
+      guard(async () => {
+        const target = jobId ?? queueState.jobId;
+        if (target) await client.call('transcription.pause', { jobId: target });
+      }),
+    resume: () =>
+      guard(async () => {
+        const target = jobId ?? queueState.jobId;
+        if (target) await client.call('transcription.resume', { jobId: target });
       }),
     // Annullare ferma la coda; il file interrotto resta in coda e riparte con "Avvia coda".
     cancel: () =>

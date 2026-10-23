@@ -148,3 +148,33 @@ public class ProgressProtocolTests
         Assert.DoesNotContain("speed", unknown, StringComparison.Ordinal);
     }
 }
+
+public class CpuLimitTests
+{
+    [Theory]
+    [InlineData(100, 8, null)]
+    [InlineData(50, 8, 4)]
+    [InlineData(25, 8, 2)]
+    [InlineData(10, 8, 1)]
+    [InlineData(25, 6, 1)]
+    [InlineData(75, 6, 4)]
+    [InlineData(50, 1, 1)]
+    [InlineData(50, 32, 16)]
+    [InlineData(5, 8, 1)]
+    public void Threads_follow_the_percentage_of_logical_cores_and_never_exceed_it(int percent, int cores, int? expected)
+    {
+        var threads = CodexVtt.Core.Transcription.CpuLimit.Threads(percent, cores);
+
+        Assert.Equal(expected, threads);
+        if (threads is { } t && cores > 1)
+            Assert.True(t * 100.0 / cores <= Math.Max(percent, 100.0 / cores) + 1e-9, "L'uso non deve superare il limite (salvo il minimo di un thread).");
+    }
+
+    [Theory]
+    [InlineData(9, false)]
+    [InlineData(10, true)]
+    [InlineData(100, true)]
+    [InlineData(101, false)]
+    public void Only_values_between_10_and_100_are_valid(int percent, bool valid) =>
+        Assert.Equal(valid, CodexVtt.Core.Transcription.CpuLimit.IsValid(percent));
+}

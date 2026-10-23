@@ -115,4 +115,6 @@ CodexVTT è distribuito con licenza [Apache-2.0](LICENSE). Le licenze dei compon
 - [Perimetro V1 e non-obiettivi](docs/architecture/perimetro-v1.md)
 - [Registro dei rischi](docs/architecture/rischi.md)
 - [Matrice licenze](docs/architecture/licenze.md)
+- [Codice di condotta](CODE_OF_CONDUCT.md)
+- [Politica di sicurezza](SECURITY.md)
 - [Spike runtime Whisper](spike/runtime-probe/README.md)

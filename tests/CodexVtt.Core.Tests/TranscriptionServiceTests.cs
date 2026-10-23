@@ -275,6 +275,139 @@ public sealed class TranscriptionServiceTests : IDisposable
         Assert.All(reports.Where(r => r.Status == JobStatus.Transcribing).Take(3), r => Assert.Null(r.Remaining));
     }
 
+    private static async Task WaitUntilAsync(Func<bool> condition, int timeoutMs = 8000)
+    {
+        for (var waited = 0; !condition(); waited += 10)
+        {
+            Assert.True(waited < timeoutMs, "Condizione non raggiunta in tempo.");
+            await Task.Delay(10);
+        }
+    }
+
+    [Fact]
+    public async Task Pause_stops_the_engine_and_resume_continues_without_gaps_or_duplicates()
+    {
+        await InstallModelAsync();
+        var engine = new PausableEngine();
+        using var service = new TranscriptionService(_store, _audio, engine, NullLogger<TranscriptionService>.Instance,
+            new AudioChunker(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1)));
+        var statuses = new List<JobStatus>();
+        service.Progress += p =>
+        {
+            lock (statuses)
+                statuses.Add(p.Status);
+        };
+        var finished = new TaskCompletionSource<TranscriptionJob>();
+        service.Finished += j => finished.TrySetResult(j);
+
+        var job = service.Start(RegisterAudio(10), "base", new TranscriptionOptions("it"));
+        await WaitUntilAsync(() => engine.Emitted >= 2);
+        service.Pause(job.JobId);
+        await WaitUntilAsync(() => { lock (statuses) return statuses.Contains(JobStatus.Paused); });
+
+        // In pausa il motore non lavora più: nessun segmento in più, la CPU è libera.
+        var emitted = engine.Emitted;
+        await Task.Delay(400);
+        Assert.Equal(emitted, engine.Emitted);
+        Assert.Equal(JobStatus.Paused, job.Status);
+
+        service.Resume(job.JobId);
+        var done = await finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(JobStatus.Completed, done.Status);
+        var segments = done.Result!.Segments;
+        Assert.Equal(10, segments.Count);
+        for (var i = 0; i < 10; i++)
+        {
+            Assert.Equal(TimeSpan.FromSeconds(i), segments[i].Start);
+            Assert.Equal(TimeSpan.FromSeconds(i + 1), segments[i].End);
+        }
+
+        Assert.True(engine.Calls >= 2, "Dopo la ripresa il motore deve essere richiamato sul resto dell'audio.");
+        lock (statuses)
+            Assert.Contains(JobStatus.Transcribing, statuses.SkipWhile(s => s != JobStatus.Paused));
+    }
+
+    [Fact]
+    public async Task A_paused_job_can_be_cancelled()
+    {
+        await InstallModelAsync();
+        var engine = new PausableEngine();
+        using var service = new TranscriptionService(_store, _audio, engine, NullLogger<TranscriptionService>.Instance,
+            new AudioChunker(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1)));
+        var finished = new TaskCompletionSource<TranscriptionJob>();
+        service.Finished += j => finished.TrySetResult(j);
+
+        var job = service.Start(RegisterAudio(10), "base", new TranscriptionOptions("it"));
+        await WaitUntilAsync(() => engine.Emitted >= 1);
+        service.Pause(job.JobId);
+        await WaitUntilAsync(() => job.Status == JobStatus.Paused);
+        service.Cancel(job.JobId);
+
+        var done = await finished.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal(JobStatus.Cancelled, done.Status);
+    }
+
+    [Fact]
+    public async Task A_quick_pause_and_resume_is_not_mistaken_for_a_cancellation()
+    {
+        await InstallModelAsync();
+        var engine = new PausableEngine();
+        using var service = new TranscriptionService(_store, _audio, engine, NullLogger<TranscriptionService>.Instance,
+            new AudioChunker(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(1)));
+        var finished = new TaskCompletionSource<TranscriptionJob>();
+        service.Finished += j => finished.TrySetResult(j);
+
+        var job = service.Start(RegisterAudio(6), "base", new TranscriptionOptions("it"));
+        await WaitUntilAsync(() => engine.Emitted >= 1);
+        service.Pause(job.JobId);
+        service.Resume(job.JobId);
+
+        var done = await finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(JobStatus.Completed, done.Status);
+        Assert.Equal(6, done.Result!.Segments.Count);
+    }
+
+    /// <summary>Un secondo di parlato per volta, annullabile: come un motore vero che si ferma quando glielo si chiede.</summary>
+    private sealed class PausableEngine : ITranscriptionEngine
+    {
+        private int _emitted;
+        private int _calls;
+
+        public int Emitted => Volatile.Read(ref _emitted);
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        public Task<ITranscriptionSession> LoadAsync(ModelDescriptor model, string modelPath, CancellationToken ct) =>
+            Task.FromResult<ITranscriptionSession>(new Session(this));
+
+        private sealed class Session(PausableEngine owner) : ITranscriptionSession
+        {
+            public string Runtime => "Pausable";
+
+            public string? DetectedLanguage => null;
+
+            public async IAsyncEnumerable<TranscriptSegment> TranscribeAsync(
+                ReadOnlyMemory<float> samples,
+                TranscriptionOptions options,
+                IProgress<int>? progress,
+                [EnumeratorCancellation] CancellationToken ct)
+            {
+                Interlocked.Increment(ref owner._calls);
+                var seconds = samples.Length / AudioConstants.WhisperSampleRate;
+                for (var i = 0; i < seconds; i++)
+                {
+                    await Task.Delay(60, ct);
+                    progress?.Report((i + 1) * 100 / seconds);
+                    Interlocked.Increment(ref owner._emitted);
+                    yield return new TranscriptSegment(TimeSpan.FromSeconds(i), TimeSpan.FromSeconds(i + 1), $"parola{i}", 0.9f);
+                }
+            }
+
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
     private sealed class ManualTime : TimeProvider
     {
         private long _milliseconds;

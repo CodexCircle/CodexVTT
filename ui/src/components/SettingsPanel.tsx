@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { mascotCharacters, palettes, type Palette } from '../bridge/protocol';
 import { Mascot } from '../mascot/Mascot';
 import { transcriptionLanguages, useI18n, type MessageKey } from '../i18n/i18n';
@@ -14,7 +15,15 @@ const swatches: Record<Palette, string[]> = {
 export function SettingsPanel({ app }: { app: CodexVttState }) {
   const { t } = useI18n();
   const s = app.settings;
+  // Il cursore si sposta liberamente e il valore si salva quando lo si rilascia, non a ogni scatto.
+  const [cpu, setCpu] = useState(s?.cpuLimitPercent ?? 100);
+  useEffect(() => setCpu(s?.cpuLimitPercent ?? 100), [s?.cpuLimitPercent]);
   if (!s) return null;
+  const cores = app.system?.hardware.logicalCores ?? 1;
+  const threads = cpu >= 100 ? undefined : Math.max(1, Math.floor((cores * cpu) / 100));
+  const commitCpu = () => {
+    if (cpu !== (s.cpuLimitPercent ?? 100)) void app.saveSettings({ ...s, cpuLimitPercent: cpu });
+  };
   const entries = app.history?.entries ?? [];
   const seconds = entries.reduce((sum, e) => sum + e.audioDuration, 0);
   // La barra si riempie a ogni ora di audio trascritto.
@@ -133,6 +142,25 @@ export function SettingsPanel({ app }: { app: CodexVttState }) {
 
       <div className="card form">
         <h3>{t('performance')}</h3>
+        <label htmlFor="cpu-limit">
+          {t('cpuLimit', { percent: cpu })}
+        </label>
+        <input
+          id="cpu-limit"
+          type="range"
+          min={10}
+          max={100}
+          step={5}
+          value={cpu}
+          aria-valuetext={`${cpu}%`}
+          onChange={(e) => setCpu(Number(e.target.value))}
+          onPointerUp={commitCpu}
+          onKeyUp={commitCpu}
+          onBlur={commitCpu}
+        />
+        <p className="muted">
+          {threads === undefined ? t('cpuLimitNone', { cores }) : t('cpuLimitThreads', { threads, cores })} {t('cpuLimitNote')}
+        </p>
         <label className="check">
           <input
             type="checkbox"

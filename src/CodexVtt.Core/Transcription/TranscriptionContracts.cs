@@ -70,6 +70,9 @@ public enum JobStatus
     Completed,
     Cancelled,
     Failed,
+
+    /// <summary>In pausa: il motore è fermo e non usa la CPU; si riprende dal punto raggiunto.</summary>
+    Paused,
 }
 
 /// <param name="Remaining">Tempo stimato alla fine del file, dalla velocità misurata finora; assente finché è troppo presto per stimarlo.</param>

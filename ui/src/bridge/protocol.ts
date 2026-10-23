@@ -170,6 +170,8 @@ export interface QueueState {
   items: QueueItem[];
   running: boolean;
   jobId?: string;
+  /** Avanzamento del file in corso (anche in pausa), per chi riapre la pagina. */
+  progress?: JobProgress;
 }
 
 export type UpdateState = 'unsupported' | 'upToDate' | 'available' | 'downloading' | 'failed';
@@ -183,7 +185,7 @@ export interface UpdateStatus {
   releasesUrl?: string;
 }
 
-export type JobStatus = 'queued' | 'decoding' | 'transcribing' | 'completed' | 'cancelled' | 'failed';
+export type JobStatus = 'queued' | 'decoding' | 'transcribing' | 'completed' | 'cancelled' | 'failed' | 'paused';
 
 export interface JobProgress {
   jobId: string;
@@ -226,6 +228,8 @@ export interface AppSettings {
   /** Mascotte scelta; assente = Tina. */
   mascot?: MascotCharacter | null;
   historyDirectory?: string | null;
+  /** Quanta CPU possono usare i motori, in percentuale dei core (10-100); assente = 100, nessun limite. Vale dalla prossima trascrizione. */
+  cpuLimitPercent?: number;
   /** Usa la scheda video (Vulkan) per Whisper quando il PC la supporta; assente = sì. Si applica al prossimo avvio. */
   useGpu?: boolean;
   /** Controlla da solo gli aggiornamenti all'avvio (contatta GitHub); assente = no, solo a richiesta. */
@@ -287,6 +291,8 @@ export interface Commands {
     res: { jobId: string; modelId: string };
   };
   'transcription.cancel': { req: { jobId: string }; res: { cancelling: boolean } };
+  'transcription.pause': { req: { jobId: string }; res: { pausing: boolean } };
+  'transcription.resume': { req: { jobId: string }; res: { resumed: boolean } };
   'transcription.get': {
     req: { jobId: string };
     res: { jobId: string; status: JobStatus; result?: TranscriptionResult; error?: BridgeError };

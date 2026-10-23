@@ -77,6 +77,8 @@ public sealed partial class BridgeDispatcher : IDisposable
             ["audio.pickMany"] = PickAudioManyAsync,
             ["transcription.start"] = (p, _) => Task.FromResult<object?>(StartTranscription(Read<StartTranscriptionRequest>(p))),
             ["transcription.cancel"] = (p, _) => Task.FromResult<object?>(CancelTranscription(Read<JobRef>(p).JobId)),
+            ["transcription.pause"] = (p, _) => Task.FromResult<object?>(PauseTranscription(Read<JobRef>(p).JobId)),
+            ["transcription.resume"] = (p, _) => Task.FromResult<object?>(ResumeTranscription(Read<JobRef>(p).JobId)),
             ["transcription.get"] = (p, _) => Task.FromResult<object?>(GetTranscription(Read<JobRef>(p).JobId)),
             ["updates.status"] = (_, _) => Task.FromResult<object?>(UpdateStatusNow()),
             ["updates.check"] = async (_, ct) => await CheckUpdatesAsync(ct).ConfigureAwait(false),
@@ -336,7 +338,7 @@ public sealed partial class BridgeDispatcher : IDisposable
             ?? throw new CodexVttException(ErrorCodes.ModelNotInstalled, "Nessun modello selezionato.");
         // V1: nessuna traduzione (issue #17), solo trascrizione nella lingua dell'audio.
         var job = _transcription.Start(request.AudioId, modelId,
-            new TranscriptionOptions(request.Language ?? _settings.Load().Language, Translate: false));
+            new TranscriptionOptions(request.Language ?? _settings.Load().Language, Translate: false, Threads: ThreadLimit()));
         return new { job.JobId, ModelId = modelId };
     }
 
@@ -345,6 +347,21 @@ public sealed partial class BridgeDispatcher : IDisposable
         _transcription.Cancel(jobId);
         return new { Cancelling = true };
     }
+
+    private object PauseTranscription(string jobId)
+    {
+        _transcription.Pause(jobId);
+        return new { Pausing = true };
+    }
+
+    private object ResumeTranscription(string jobId)
+    {
+        _transcription.Resume(jobId);
+        return new { Resumed = true };
+    }
+
+    /// <summary>Thread dei motori secondo il limite di CPU scelto (null = nessun limite).</summary>
+    private int? ThreadLimit() => CpuLimit.Threads(_settings.Load().CpuLimitPercent, Environment.ProcessorCount);
 
     private object GetTranscription(string jobId)
     {
@@ -412,6 +429,8 @@ public sealed partial class BridgeDispatcher : IDisposable
     {
         if (settings.SelectedModelId is { } id)
             RequireModel(id);
+        if (!CpuLimit.IsValid(settings.CpuLimitPercent))
+            throw new CodexVttException(ErrorCodes.InvalidRequest, $"Il limite di CPU deve essere tra {CpuLimit.MinPercent}% e {CpuLimit.MaxPercent}%.");
         if (settings.UiLanguage is not (null or "it" or "en"))
             throw new CodexVttException(ErrorCodes.InvalidRequest, "Lingua dell'interfaccia non supportata.");
         if (settings.Theme is not (null or "light" or "dark"))
