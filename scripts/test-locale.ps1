@@ -7,6 +7,7 @@
   2. UI: typecheck, test e build per l'app e per il server
   3. Build dell'app Windows (richiede il workload MAUI)
   4. Con -Docker: costruisce l'immagine, avvia il container con un token casuale e controlla porta, token e /healthz
+  6. Con -Github: dopo una release, controlla su GitHub vero che l'app la veda e ne scarichi il pacchetto (usa la rete)
   5. Con -Feed: crea con `vpk` un feed Velopack di prova (0.1.0 → 0.2.0, con delta) e prova il servizio di aggiornamento
   Per la trascrizione reale imposta CODEXVTT_TEST_MODEL e CODEXVTT_TEST_AUDIO (vedi tests/CodexVtt.Integration.Tests).
 
@@ -18,6 +19,7 @@
 param(
     [switch]$Docker,
     [switch]$Feed,
+    [switch]$Github,
     [switch]$SkipApp
 )
 
@@ -99,6 +101,14 @@ if ($Feed) {
             $env:CODEXVTT_TEST_FEED = $null
             Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
         }
+    }
+}
+
+if ($Github) {
+    Step 'Aggiornamenti: release vera su GitHub' {
+        $env:CODEXVTT_TEST_GITHUB = 'download'
+        try { dotnet test tests/CodexVtt.Updates.Tests --nologo --filter GithubReleaseTests }
+        finally { $env:CODEXVTT_TEST_GITHUB = $null }
     }
 }
 
