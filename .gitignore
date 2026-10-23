@@ -10,3 +10,5 @@ ui/dist/
 ui/dist-preview/
 src/CodexVtt.App/Resources/Raw/wwwroot/
 src/CodexVtt.Server/wwwroot/
+/publish/
+/installer/
