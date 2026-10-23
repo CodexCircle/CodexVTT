@@ -131,6 +131,19 @@ export function SettingsPanel({ app }: { app: CodexVttState }) {
         </label>
       </div>
 
+      <div className="card form">
+        <h3>{t('performance')}</h3>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={s.useGpu !== false}
+            onChange={(e) => void app.saveSettings({ ...s, useGpu: e.target.checked })}
+          />
+          {t('useGpu')}
+        </label>
+        <p className="muted">{t('useGpuText')}</p>
+      </div>
+
       <div className="card">
         <h3>{t('historySettings')}</h3>
         <p className="folder">

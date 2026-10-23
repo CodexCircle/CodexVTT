@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/CodexVtt.Core/CodexVtt.Core.csproj" />
     <Project Path="src/CodexVtt.Transcription.Whisper/CodexVtt.Transcription.Whisper.csproj" />
+    <Project Path="src/CodexVtt.Transcription.Sherpa/CodexVtt.Transcription.Sherpa.csproj" />
     <Project Path="src/CodexVtt.Audio.Windows/CodexVtt.Audio.Windows.csproj" />
     <Project Path="src/CodexVtt.Audio.FFmpeg/CodexVtt.Audio.FFmpeg.csproj" />
     <Project Path="src/CodexVtt.Models.Download/CodexVtt.Models.Download.csproj" />
@@ -16,6 +17,9 @@
     <Project Path="tests/CodexVtt.Integration.Tests/CodexVtt.Integration.Tests.csproj" />
     <Project Path="tests/CodexVtt.Server.Tests/CodexVtt.Server.Tests.csproj" />
     <Project Path="tests/CodexVtt.Updates.Tests/CodexVtt.Updates.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/CodexVtt.Bench/CodexVtt.Bench.csproj" />
   </Folder>
   <Folder Name="/spike/">
     <Project Path="spike/runtime-probe/RuntimeProbe.csproj" />

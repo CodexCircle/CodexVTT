@@ -53,6 +53,8 @@ public static class ErrorCodes
     public const string HistorySaveFailed = "history_save_failed";
     public const string HistoryFolderBlocked = "history_folder_blocked";
     public const string NotAvailableOnServer = "not_available_on_server";
+    public const string LanguageRequired = "language_required";
+    public const string EngineUnavailable = "engine_unavailable";
     public const string UpdateUnavailable = "update_unavailable";
     public const string UpdateFailed = "update_failed";
     public const string InvalidRequest = "invalid_request";

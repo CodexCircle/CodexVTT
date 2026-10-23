@@ -14,6 +14,7 @@ CodexVTT è un'app Windows che trascrive file audio con modelli Whisper installa
 |---|---|
 | `src/CodexVtt.Core` | Dominio: catalogo e selezione modelli, verifica, audio, trascrizione, export, impostazioni, log. Nessuna rete. |
 | `src/CodexVtt.Transcription.Whisper` | Adattatore whisper.cpp (Whisper.net), runtime CPU + NoAvx |
+| `src/CodexVtt.Transcription.Sherpa` | Parakeet, Canary e Cohere con sherpa-onnx ([ADR-0009](docs/adr/0009-motori-multipli-e-gpu.md)) |
 | `src/CodexVtt.Audio.Windows` | Decodifica Media Foundation (Windows) |
 | `src/CodexVtt.Audio.FFmpeg` | Decodifica con ffmpeg del sistema (Linux/Docker) |
 | `src/CodexVtt.Models.Download` | Unico componente con accesso alla rete: download dei modelli con allowlist e SHA-256 |
@@ -25,6 +26,7 @@ CodexVTT è un'app Windows che trascrive file audio con modelli Whisper installa
 | `tests/` | Test unitari, di architettura (isolamento di rete), server, aggiornamenti e integrazione Whisper |
 | `scripts/` | `test-locale.ps1` (controlli), `release-locale.ps1` (release), `installa-servizio.ps1` (servizio di Windows) |
 | `tools/pin_catalog.py` | Fissa revisione e SHA-256 dei modelli dal repository Hugging Face |
+| `tools/CodexVtt.Bench` | Confronto tra modelli sullo stesso audio: tempo, velocità e WER |
 
 ## Sviluppo
 

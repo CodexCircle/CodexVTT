@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\CodexVtt.Core\CodexVtt.Core.csproj" />
     <ProjectReference Include="..\..\src\CodexVtt.Transcription.Whisper\CodexVtt.Transcription.Whisper.csproj" />
+    <ProjectReference Include="..\..\src\CodexVtt.Transcription.Sherpa\CodexVtt.Transcription.Sherpa.csproj" />
     <ProjectReference Include="..\..\src\CodexVtt.Audio.Windows\CodexVtt.Audio.Windows.csproj" />
     <ProjectReference Include="..\..\src\CodexVtt.Audio.FFmpeg\CodexVtt.Audio.FFmpeg.csproj" />
     <ProjectReference Include="..\..\src\CodexVtt.Updates\CodexVtt.Updates.csproj" />

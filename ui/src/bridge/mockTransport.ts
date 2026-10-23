@@ -39,6 +39,8 @@ export interface MockOptions {
   collections?: { name: string; color: CollectionColor; files: string[] }[];
   /** Simula la versione server (UI nel browser). */
   host?: 'desktop' | 'server';
+  /** Schede video rilevate (predefinito: nessuna). */
+  gpus?: string[];
   /** Stato iniziale degli aggiornamenti (predefinito: installata e aggiornata). */
   updates?: UpdateStatus;
 }
@@ -64,6 +66,24 @@ export function createMockTransport(options: MockOptions = {}): Transport {
     model('large-v3-turbo-q5_0', 'Large v3 Turbo (q5_0)', 574_041_195, 1.2, 10),
     model('medium', 'Medium', 1_533_763_059, 2.1, 16, ['tooSlow']),
     model('large-v3', 'Large v3', 3_095_033_483, 3.9, 32, ['tooSlow']),
+    {
+      ...model('parakeet-tdt-0.6b-v3-int8', 'Parakeet TDT 0.6B v3 (int8)', 670_478_772, 1.5, 2),
+      engine: 'sherpa-transducer',
+      preview: true,
+      quantization: 'int8',
+      license: 'CC-BY-4.0',
+      attribution: 'Parakeet TDT 0.6B v3 by NVIDIA, licensed under CC-BY-4.0. Converted to int8 ONNX for sherpa-onnx.',
+      accuracy: { language: 'it', percent: 97, metric: '100 - WER FLEURS italiano', source: 'Scheda del modello nvidia/parakeet-tdt-0.6b-v3', measuredByProject: false },
+    },
+    {
+      ...model('canary-1b-v2-int8', 'Canary 1B v2 (int8)', 1_385_592_870, 2.6, 16),
+      engine: 'sherpa-canary',
+      preview: true,
+      requiresLanguage: true,
+      quantization: 'int8',
+      license: 'CC-BY-4.0',
+      attribution: 'Canary-1B-v2 by NVIDIA, licensed under CC-BY-4.0. Converted to int8 ONNX for sherpa-onnx.',
+    },
   ];
   for (const id of options.installed ?? []) {
     const m = models.find((x) => x.id === id);
@@ -176,6 +196,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
       availableMemoryBytes: 9 * GB,
       cpuFeatures: 'Avx, Avx2, Fma, F16C',
       freeDiskBytes: 120 * GB,
+      gpus: options.gpus ?? [],
     },
     supportsStandardRuntime: true,
     supportedAudioExtensions: ['.wav', '.mp3', '.m4a', '.aac', '.wma', '.flac', '.ogg', '.opus'],
@@ -499,5 +520,8 @@ function model(id: string, displayName: string, sizeBytes: number, ramGb: number
     downloadable: true,
     state: 'notInstalled',
     issues,
+    engine: 'whisper',
+    preview: false,
+    requiresLanguage: false,
   };
 }

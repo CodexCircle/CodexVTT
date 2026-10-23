@@ -50,8 +50,9 @@ public static class ModelSelector
             .Select(m => Assess(m, hardware, rules, maxCost, installedIds.Contains(m.Id)))
             .ToList();
 
+        // Le anteprime (Parakeet, Canary, Cohere) non vengono mai raccomandate da sole: l'utente le sceglie.
         var best = assessments
-            .Where(a => a.IsCompatible)
+            .Where(a => a.IsCompatible && !a.Model.Preview)
             .OrderByDescending(a => a.Model.QualityRank)
             .ThenBy(a => a.Model.RelativeCost)
             .FirstOrDefault();

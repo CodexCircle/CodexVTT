@@ -13,6 +13,7 @@ using CodexVtt.Core.Settings;
 using CodexVtt.Core.Transcription;
 using CodexVtt.Models.Download;
 using CodexVtt.Server;
+using CodexVtt.Transcription.Sherpa;
 using CodexVtt.Transcription.Whisper;
 
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -67,7 +68,15 @@ services.AddSingleton(sp =>
         sp.GetRequiredService<ILoggerFactory>().CreateLogger("CodexVtt.Server").LogFfmpegMissing();
     return new AudioLibrary(decoders, ServerDefaults.MaxAudioDuration);
 });
-services.AddSingleton<ITranscriptionEngine, WhisperEngine>();
+// Motori (ADR-0009): Whisper (con GPU se possibile) e sherpa-onnx per Parakeet, Canary e Cohere.
+var sherpa = new SherpaEngine();
+services.AddSingleton<ITranscriptionEngine>(_ => new EngineRegistry(new Dictionary<string, ITranscriptionEngine>
+{
+    ["whisper"] = new WhisperEngine(settingsStore.Load().UseGpu),
+    [SherpaEngine.Transducer] = sherpa,
+    [SherpaEngine.Canary] = sherpa,
+    [SherpaEngine.Cohere] = sherpa,
+}));
 services.AddSingleton(sp => new TranscriptionService(
     sp.GetRequiredService<ModelStore>(),
     sp.GetRequiredService<AudioLibrary>(),

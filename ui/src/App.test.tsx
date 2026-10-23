@@ -432,3 +432,61 @@ describe('Aggiornamenti da GitHub', () => {
     expect(screen.queryByRole('group', { name: 'Aggiornamenti' })).not.toBeInTheDocument();
   });
 });
+
+describe('Nuovi modelli e GPU', () => {
+  it('mostra anteprima, motore, affidabilità dichiarata e attribuzione nella scheda Modelli', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+
+    const parakeet = await screen.findByRole('listitem', { name: 'Parakeet TDT 0.6B v3 (int8)' });
+    expect(within(parakeet).getByText('Anteprima')).toBeInTheDocument();
+    expect(within(parakeet).getByText(/Motore: sherpa-onnx/)).toBeInTheDocument();
+    const badge = within(parakeet).getByText('Affidabilità ~97%');
+    expect(badge).toHaveAttribute('title', expect.stringContaining('non misurato da CodexVTT'));
+    expect(within(parakeet).getByText(/by NVIDIA, licensed under CC-BY-4\.0/)).toBeInTheDocument();
+
+    const base = screen.getByRole('listitem', { name: 'Base' });
+    expect(within(base).getByText(/Motore: Whisper/)).toBeInTheDocument();
+    expect(within(base).getByText(/Affidabilità non ancora misurata/)).toBeInTheDocument();
+    expect(within(base).queryByText('Anteprima')).not.toBeInTheDocument();
+
+    const canary = screen.getByRole('listitem', { name: 'Canary 1B v2 (int8)' });
+    expect(within(canary).getByText(/richiede di scegliere la lingua/)).toBeInTheDocument();
+  });
+
+  it('un modello che non rileva la lingua non parte con «Rilevamento automatico»', async () => {
+    const { user } = setup({ installed: ['canary-1b-v2-int8'] });
+
+    await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
+    const start = await screen.findByRole('button', { name: 'Avvia trascrizione' });
+    expect(start).toBeDisabled();
+    expect(screen.getByRole('status')).toHaveTextContent('richiede di scegliere la lingua');
+
+    await user.selectOptions(screen.getByLabelText('Lingua'), 'it');
+    expect(screen.getByRole('button', { name: 'Avvia trascrizione' })).toBeEnabled();
+  });
+
+  it('la scheda video è usata di default e si può spegnere dalle impostazioni', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));
+
+    const gpu = await screen.findByLabelText('Usa la scheda video (GPU) per Whisper quando disponibile');
+    expect(gpu).toBeChecked();
+    await user.click(gpu);
+
+    await waitFor(() => expect(screen.getByLabelText('Usa la scheda video (GPU) per Whisper quando disponibile')).not.toBeChecked());
+  });
+});
+describe('Scheda video rilevata', () => {
+  it('mostra la scheda trovata oppure dice che si usa la CPU', async () => {
+    const withGpu = setup({ installed: ['base'], gpus: ['NVIDIA GeForce RTX 4070'] });
+    await withGpu.user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    expect(await screen.findByText('NVIDIA GeForce RTX 4070')).toBeInTheDocument();
+  });
+
+  it('senza scheda compatibile lo dice', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    expect(await screen.findByText('nessuna compatibile con Vulkan: Whisper usa la CPU')).toBeInTheDocument();
+  });
+});

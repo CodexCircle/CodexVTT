@@ -62,6 +62,25 @@ public sealed class TranscriptionServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task A_model_that_needs_the_language_refuses_automatic_detection_before_decoding()
+    {
+        var catalog = TestData.Catalog(models: ("base", ModelContent, 2, 2, 0));
+        var needy = new ModelCatalog(catalog.Source, catalog.Selection, [catalog.Models[0] with { RequiresLanguage = true }]);
+        var store = new ModelStore(_dir.AppPaths(), needy);
+        await store.ImportAsync(_dir.File("needy.bin", ModelContent));
+        using var service = new TranscriptionService(store, _audio, _engine, NullLogger<TranscriptionService>.Instance);
+        var audioId = RegisterAudio(1);
+
+        var error = await Assert.ThrowsAsync<CodexVttException>(() =>
+            service.RunToCompletionAsync(audioId, "base", new TranscriptionOptions("auto"), CancellationToken.None));
+
+        Assert.Equal(ErrorCodes.LanguageRequired, error.Code);
+        Assert.Equal(0, _engine.ChunkCount);
+        var result = await service.RunToCompletionAsync(audioId, "base", new TranscriptionOptions("it"), CancellationToken.None);
+        Assert.NotEmpty(result.Segments);
+    }
+
+    [Fact]
     public async Task Whisper_markers_are_not_kept_as_speech()
     {
         await InstallModelAsync();
@@ -227,7 +246,7 @@ public sealed class TranscriptionServiceTests : IDisposable
 
         public string? TextOverride { get; set; }
 
-        public Task<ITranscriptionSession> LoadAsync(string modelPath, CancellationToken ct)
+        public Task<ITranscriptionSession> LoadAsync(ModelDescriptor model, string modelPath, CancellationToken ct)
         {
             Assert.True(File.Exists(modelPath));
             return Task.FromResult<ITranscriptionSession>(new Session(this));

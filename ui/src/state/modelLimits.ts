@@ -13,7 +13,9 @@ export function modelLimits(models: ModelInfo[], reasons: SelectionReason[] = []
   const ramLimit = arg('ram_limit', 'limitBytes');
   const maxCost = arg('cpu_budget', 'maxCost');
   const heaviestFit = Number.isFinite(maxCost)
-    ? models.filter((m) => m.relativeCost <= maxCost).sort((a, b) => b.relativeCost - a.relativeCost)[0]
+    ? models
+        .filter((m) => !m.preview && m.relativeCost <= maxCost)
+        .sort((a, b) => b.relativeCost - a.relativeCost)[0]
     : undefined;
   return { ramLimitBytes: Number.isFinite(ramLimit) ? ramLimit : undefined, heaviestFit };
 }

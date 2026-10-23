@@ -10,6 +10,7 @@ using CodexVtt.Core.Models;
 using CodexVtt.Core.Settings;
 using CodexVtt.Core.Transcription;
 using CodexVtt.Models.Download;
+using CodexVtt.Transcription.Sherpa;
 using CodexVtt.Transcription.Whisper;
 
 namespace CodexVtt.App;
@@ -56,7 +57,15 @@ public static class MauiProgram
             sp.GetRequiredService<ILogger<ModelDownloader>>()));
 
         services.AddSingleton(_ => new AudioLibrary([new WavDecoder(), new MediaFoundationDecoder()], MaxAudioDuration));
-        services.AddSingleton<ITranscriptionEngine, WhisperEngine>();
+        // Motori (ADR-0009): Whisper (con GPU se possibile) e sherpa-onnx per Parakeet, Canary e Cohere.
+        var sherpa = new SherpaEngine();
+        services.AddSingleton<ITranscriptionEngine>(_ => new EngineRegistry(new Dictionary<string, ITranscriptionEngine>
+        {
+            ["whisper"] = new WhisperEngine(settingsStore.Load().UseGpu),
+            [SherpaEngine.Transducer] = sherpa,
+            [SherpaEngine.Canary] = sherpa,
+            [SherpaEngine.Cohere] = sherpa,
+        }));
         services.AddSingleton(sp => new TranscriptionService(
             sp.GetRequiredService<ModelStore>(),
             sp.GetRequiredService<AudioLibrary>(),

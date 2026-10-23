@@ -39,10 +39,27 @@ public interface ITranscriptionSession : IAsyncDisposable
     string? DetectedLanguage { get; }
 }
 
-/// <summary>Runtime di inferenza locale (ADR-0002). L'implementazione non deve usare la rete.</summary>
+/// <summary>Runtime di inferenza locale (ADR-0002, ADR-0009). L'implementazione non deve usare la rete.</summary>
 public interface ITranscriptionEngine
 {
-    Task<ITranscriptionSession> LoadAsync(string modelPath, CancellationToken ct);
+    /// <param name="model">Voce del catalogo (motore, lingue, file).</param>
+    /// <param name="modelPath">File del modello, oppure cartella per i modelli a più file.</param>
+    Task<ITranscriptionSession> LoadAsync(CodexVtt.Core.Models.ModelDescriptor model, string modelPath, CancellationToken ct);
+}
+
+/// <summary>Sceglie il motore in base al campo <c>engine</c> del modello.</summary>
+public sealed class EngineRegistry : ITranscriptionEngine
+{
+    private readonly IReadOnlyDictionary<string, ITranscriptionEngine> _engines;
+
+    public EngineRegistry(IReadOnlyDictionary<string, ITranscriptionEngine> engines) => _engines = engines;
+
+    public Task<ITranscriptionSession> LoadAsync(CodexVtt.Core.Models.ModelDescriptor model, string modelPath, CancellationToken ct) =>
+        _engines.TryGetValue(model.Engine, out var engine)
+            ? engine.LoadAsync(model, modelPath, ct)
+            : throw new CodexVtt.Core.Errors.CodexVttException(CodexVtt.Core.Errors.ErrorCodes.EngineUnavailable,
+                $"Nessun motore disponibile per «{model.Engine}».",
+                new Dictionary<string, string> { ["engine"] = model.Engine });
 }
 
 public enum JobStatus

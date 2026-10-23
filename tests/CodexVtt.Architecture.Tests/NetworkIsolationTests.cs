@@ -35,6 +35,7 @@ public class NetworkIsolationTests
     {
         "CodexVtt.Core",
         "CodexVtt.Transcription.Whisper",
+        "CodexVtt.Transcription.Sherpa",
         "CodexVtt.Audio.Windows",
         "CodexVtt.Audio.FFmpeg",
         "CodexVtt.Bridge",

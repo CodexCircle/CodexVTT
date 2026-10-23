@@ -30,6 +30,8 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
                 {t('cpuValue', { cores: hw.logicalCores, features: hw.cpuFeatures || 'n/d' })}
                 {!app.system?.supportsStandardRuntime && t('compatMode')}
               </dd>
+              <dt>{t('gpu')}</dt>
+              <dd>{hw.gpus && hw.gpus.length > 0 ? hw.gpus.join(', ') : t('gpuNone')}</dd>
               <dt>{t('memory')}</dt>
               <dd>{t('memoryValue', { total: formatMemory(hw.totalMemoryBytes) })}</dd>
               <dt>{t('freeDisk')}</dt>
@@ -77,6 +79,11 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
               <div className="model__head">
                 <strong>{m.displayName}</strong>
                 {recommended && <span className="badge badge--accent">{t('recommended')}</span>}
+                {m.preview && (
+                  <span className="badge" title={t('previewNote')}>
+                    {t('previewBadge')}
+                  </span>
+                )}
                 {selected && <span className="badge">{t('inUse')}</span>}
                 <span className={`state state--${m.state}`}>{t(`state_${m.state}` as MessageKey)}</span>
               </div>
@@ -88,6 +95,26 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
                   license: m.license,
                 })}
               </div>
+              <div className="model__meta muted">
+                {t('engineLine', { engine: engineName(m.engine) })}
+                {' · '}
+                {m.accuracy ? (
+                  <span
+                    className="model__accuracy"
+                    title={t('accuracyTip', {
+                      metric: m.accuracy.metric,
+                      source: m.accuracy.source,
+                      measured: t(m.accuracy.measuredByProject ? 'accuracyMeasured' : 'accuracyPublished'),
+                    })}
+                  >
+                    {t('accuracyBadge', { percent: formatPercent(m.accuracy.percent) })}
+                  </span>
+                ) : (
+                  t('accuracyUnknown')
+                )}
+                {m.requiresLanguage && ` · ${t('requiresLanguageNote')}`}
+              </div>
+              {m.attribution && <div className="model__attribution muted">{m.attribution}</div>}
               {m.issues.length > 0 && <div className="model__issues">{t('warning', { issues: issues(m) })}</div>}
               {download && (
                 <div className="download">
@@ -167,11 +194,21 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
           onCancel={() => setConfirming(undefined)}
         >
           <p>{t('downloadText', { size: formatBytes(confirming.sizeBytes) })}</p>
+          {confirming.preview && <p>{t('previewNote')}</p>}
           {confirming.issues.length > 0 && <p className="warning">{t('warning', { issues: issues(confirming) })}</p>}
         </ConfirmDialog>
       )}
     </section>
   );
+}
+
+function engineName(engine: string): string {
+  return engine === 'whisper' ? 'Whisper' : engine.startsWith('sherpa-') ? 'sherpa-onnx' : engine;
+}
+
+/** 97 → «97», 96.9 → «96,9» o «96.9» secondo la lingua del browser. */
+function formatPercent(value: number): string {
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
 }
 
 /** Peso del modello da 1 a 5 (scala logaritmica, da ~75 MB a ~3 GB) per il misuratore della scheda. */

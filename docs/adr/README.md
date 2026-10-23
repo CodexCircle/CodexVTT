@@ -11,6 +11,8 @@ Registro delle decisioni architetturali di CodexVTT. Ogni ADR descrive contesto,
 | [0005](0005-packaging-e-distribuzione.md) | Packaging, installazione e aggiornamenti | Proposto |
 | [0006](0006-privacy-e-rete.md) | Privacy, uso della rete e non-esfiltrazione | Proposto |
 | [0007](0007-versione-server.md) | Versione server: UI nel browser, core come servizio | Proposto |
+| [0008](0008-aggiornamenti-da-github.md) | Aggiornamenti da GitHub | Proposto |
+| [0009](0009-motori-multipli-e-gpu.md) | Motori di trascrizione multipli, modelli a più file e GPU | Proposto |
 
 Documenti di supporto:
 

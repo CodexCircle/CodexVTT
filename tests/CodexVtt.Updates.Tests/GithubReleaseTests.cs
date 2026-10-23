@@ -28,10 +28,14 @@ public sealed class GithubReleaseTests : IDisposable
         if (string.IsNullOrEmpty(mode))
             return;
 
-        var older = Service("0.0.1");
+        // CODEXVTT_TEST_GITHUB_INSTALLED: la versione «installata» da cui si parte (es. 1.0.0 per provare l'aggiornamento
+        // alla release appena pubblicata); CODEXVTT_TEST_GITHUB_EXPECTED: la versione che deve essere offerta.
+        var older = Service(Environment.GetEnvironmentVariable("CODEXVTT_TEST_GITHUB_INSTALLED") ?? "0.0.1");
         var offered = await older.CheckAsync(CancellationToken.None);
         Assert.Equal(UpdateState.Available, offered.State);
         Assert.False(string.IsNullOrEmpty(offered.LatestVersion));
+        if (Environment.GetEnvironmentVariable("CODEXVTT_TEST_GITHUB_EXPECTED") is { Length: > 0 } expected)
+            Assert.Equal(expected, offered.LatestVersion);
 
         var current = await Service("99.0.0").CheckAsync(CancellationToken.None);
         Assert.Equal(UpdateState.UpToDate, current.State);

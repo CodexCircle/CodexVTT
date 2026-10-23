@@ -36,6 +36,12 @@ public sealed record AppSettings
     /// </summary>
     public bool AutoCheckUpdates { get; init; }
 
+    /// <summary>
+    /// Usa la scheda video (Vulkan) per Whisper quando il PC la supporta. Di default sì, con ripiego automatico sulla CPU;
+    /// si applica al prossimo avvio. Parakeet e Canary girano sempre sulla CPU.
+    /// </summary>
+    public bool UseGpu { get; init; } = true;
+
     /// <summary>Livello minimo del log diagnostico ("Trace".."Error"); null = Information. Vedi issue #38.</summary>
     public string? DiagnosticLogLevel { get; init; }
 }

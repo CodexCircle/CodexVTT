@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "source": {
     "repository": "ggerganov/whisper.cpp",
     "revision": "5359861c739e955e79d9a303bcbc70fb988958b1",
@@ -108,6 +108,144 @@
       "qualityRank": 6,
       "multilingual": true,
       "license": "MIT"
+    },
+    {
+      "id": "parakeet-tdt-0.6b-v3-int8",
+      "displayName": "Parakeet TDT 0.6B v3 (int8)",
+      "file": "parakeet-tdt-0.6b-v3-int8",
+      "quantization": "int8",
+      "sizeBytes": 670478772,
+      "ramRequiredBytes": 1500000000,
+      "relativeCost": 2,
+      "qualityRank": 7,
+      "multilingual": true,
+      "license": "CC-BY-4.0",
+      "engine": "sherpa-transducer",
+      "source": {
+        "repository": "csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8",
+        "revision": "2bda32ec70b097a55adaa07d9a7173915b43cc78",
+        "urlTemplate": "https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8/resolve/{revision}/{file}"
+      },
+      "files": [
+        {
+          "path": "encoder.int8.onnx",
+          "sizeBytes": 652184281,
+          "sha256": "acfc2b4456377e15d04f0243af540b7fe7c992f8d898d751cf134c3a55fd2247"
+        },
+        {
+          "path": "decoder.int8.onnx",
+          "sizeBytes": 11845275,
+          "sha256": "179e50c43d1a9de79c8a24149a2f9bac6eb5981823f2a2ed88d655b24248db4e"
+        },
+        {
+          "path": "joiner.int8.onnx",
+          "sizeBytes": 6355277,
+          "sha256": "3164c13fc2821009440d20fcb5fdc78bff28b4db2f8d0f0b329101719c0948b3"
+        },
+        {
+          "path": "tokens.txt",
+          "sizeBytes": 93939,
+          "sha256": "d58544679ea4bc6ac563d1f545eb7d474bd6cfa467f0a6e2c1dc1c7d37e3c35d"
+        }
+      ],
+      "accuracy": {
+        "language": "it",
+        "percent": 97.0,
+        "metric": "100 - WER FLEURS italiano",
+        "source": "Scheda del modello nvidia/parakeet-tdt-0.6b-v3 (modello originale, non l'export int8)",
+        "measuredByProject": false
+      },
+      "attribution": "Parakeet TDT 0.6B v3 by NVIDIA, licensed under CC-BY-4.0. Converted to int8 ONNX for sherpa-onnx.",
+      "preview": true,
+      "requiresLanguage": false
+    },
+    {
+      "id": "canary-1b-v2-int8",
+      "displayName": "Canary 1B v2 (int8)",
+      "file": "canary-1b-v2-int8",
+      "quantization": "int8",
+      "sizeBytes": 1385592870,
+      "ramRequiredBytes": 2600000000,
+      "relativeCost": 4,
+      "qualityRank": 8,
+      "multilingual": true,
+      "license": "CC-BY-4.0",
+      "engine": "sherpa-canary",
+      "source": {
+        "repository": "bnoordhuis/canary-1b-v2-sherpa-onnx-nl-int8",
+        "revision": "28a965808e76ab3182c10591338a0f7914d59c0d",
+        "urlTemplate": "https://huggingface.co/bnoordhuis/canary-1b-v2-sherpa-onnx-nl-int8/resolve/{revision}/{file}"
+      },
+      "files": [
+        {
+          "path": "encoder.int8.onnx",
+          "sizeBytes": 1161643089,
+          "sha256": "8342623508dcf97c81d48f930655bb26aeb05bae7ae9336cd0001e6f5f544888"
+        },
+        {
+          "path": "decoder.int8.onnx",
+          "sizeBytes": 223741759,
+          "sha256": "ac51ba4975dc058013b041142981a376105874eb267db8a5817952154a3b7e11"
+        },
+        {
+          "path": "tokens.txt",
+          "sizeBytes": 208022,
+          "sha256": "2c9efe6104fd29522ea27ce0e3aef5d37c690af4e5a4232e643e23ca403ffea3"
+        }
+      ],
+      "accuracy": {
+        "language": "it",
+        "percent": 96.9,
+        "metric": "100 - WER FLEURS italiano",
+        "source": "Scheda del modello nvidia/canary-1b-v2 (modello originale, non l'export int8 della community)",
+        "measuredByProject": false
+      },
+      "attribution": "Canary-1B-v2 by NVIDIA, licensed under CC-BY-4.0. Converted to int8 ONNX for sherpa-onnx (non-official export by bnoordhuis).",
+      "preview": true,
+      "requiresLanguage": true
+    },
+    {
+      "id": "cohere-transcribe-03-2026-int8",
+      "displayName": "Cohere Transcribe 03-2026 (int8)",
+      "file": "cohere-transcribe-03-2026-int8",
+      "quantization": "int8",
+      "sizeBytes": 2888052036,
+      "ramRequiredBytes": 5500000000,
+      "relativeCost": 6,
+      "qualityRank": 9,
+      "multilingual": true,
+      "license": "Apache-2.0",
+      "engine": "sherpa-cohere",
+      "source": {
+        "repository": "csukuangfj2/sherpa-onnx-cohere-transcribe-14-lang-int8-2026-04-01",
+        "revision": "156a470cf08eefe706a0004f3c52d9ee567ca7a0",
+        "urlTemplate": "https://huggingface.co/csukuangfj2/sherpa-onnx-cohere-transcribe-14-lang-int8-2026-04-01/resolve/{revision}/{file}"
+      },
+      "files": [
+        {
+          "path": "encoder.int8.onnx",
+          "sizeBytes": 3090822,
+          "sha256": "cf704f8cfa90e3f0a76f9ffc05998bdf00ba9ae983192c14a85a3a5eb008b367"
+        },
+        {
+          "path": "encoder.int8.onnx.data",
+          "sizeBytes": 2731503072,
+          "sha256": "bcf1b7148c8518ae52df1ad2d2fc2b4e89261ea23e6c874eef1d9f55bcbaa4a3"
+        },
+        {
+          "path": "decoder.int8.onnx",
+          "sizeBytes": 153250705,
+          "sha256": "8372ca6c8ff4db8b916ca3592f5c757a715e691b9edec751ba19b29fc854baf9"
+        },
+        {
+          "path": "tokens.txt",
+          "sizeBytes": 207437,
+          "sha256": "013ede043ae2480e3a9205cc34550d9686100cc682bacc90f702facdfbb93035"
+        }
+      ],
+      "attribution": "Cohere Transcribe 03-2026 by Cohere Labs, licensed under Apache-2.0. Converted to int8 ONNX for sherpa-onnx.",
+      "preview": true,
+      "requiresLanguage": true
     }
   ]
 }

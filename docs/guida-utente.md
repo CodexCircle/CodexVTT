@@ -28,6 +28,15 @@ Senza connessione puoi usare **Importa modello da file…** con un file `ggml-*.
 | Small | ~490 MB | Buon compromesso per la maggior parte dei PC |
 | Large v3 Turbo (q5_0) | ~570 MB | Qualità alta su PC con 8+ core |
 | Medium / Large v3 | 1,5–3 GB | Massima qualità, molto lenti senza un PC potente |
+| Parakeet TDT 0.6B v3 *(anteprima)* | ~670 MB | Molto veloce anche sulla CPU, rileva la lingua da solo |
+| Canary 1B v2 *(anteprima)* | ~1,4 GB | Qualità simile a Parakeet, più lento; **richiede di scegliere la lingua** |
+| Cohere Transcribe *(anteprima)* | ~2,9 GB | 14 lingue, pesante; **richiede di scegliere la lingua**, senza tempi per frase |
+
+I modelli *anteprima* sono motori nuovi, provati su pochi PC: non vengono mai consigliati in automatico, ma li puoi scegliere. Girano sulla CPU. Accanto a ogni modello vedi l'**affidabilità** per l'italiano (100 meno l'errore sulle parole) quando c'è un valore noto: oggi è quello pubblicato dagli autori del modello, non una misura di CodexVTT, e su registrazioni rumorose è più bassa. I modelli di NVIDIA richiedono di citare l'autore (licenza CC-BY-4.0): l'indicazione è sulla scheda del modello.
+
+### Scheda video (GPU)
+
+Se il PC ha una scheda video NVIDIA, AMD o Intel con i driver aggiornati, Whisper la usa da solo (puoi spegnerla in **Impostazioni → Prestazioni**; si applica al riavvio). In **Modelli** vedi la scheda trovata e, nel risultato, il runtime usato: «Vulkan (GPU)» oppure «Cpu». Senza scheda compatibile si usa la CPU. Parakeet, Canary e Cohere girano sempre sulla CPU.
 
 ## Trascrivere
 

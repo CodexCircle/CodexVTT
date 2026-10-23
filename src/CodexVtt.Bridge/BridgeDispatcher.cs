@@ -635,7 +635,12 @@ public sealed partial class BridgeDispatcher : IDisposable
         _models.Catalog.DownloadUrl(status.Model) is not null,
         status.State,
         status.SizeOnDiskBytes,
-        assessment?.Issues ?? []);
+        assessment?.Issues ?? [],
+        status.Model.Engine,
+        status.Model.Preview,
+        status.Model.RequiresLanguage,
+        status.Model.Attribution,
+        status.Model.Accuracy is { } a ? new AccuracyDto(a.Language, a.Percent, a.Metric, a.Source, a.MeasuredByProject) : null);
 
     private static T Read<T>(JsonElement? payload)
     {
@@ -716,4 +721,12 @@ public sealed record ModelDto(
     bool Downloadable,
     ModelState State,
     long? SizeOnDiskBytes,
-    IReadOnlyList<CompatibilityIssue> Issues);
+    IReadOnlyList<CompatibilityIssue> Issues,
+    string Engine,
+    bool Preview,
+    bool RequiresLanguage,
+    string? Attribution,
+    AccuracyDto? Accuracy);
+
+/// <summary>Affidabilità dichiarata (100 - WER) con la fonte; <c>MeasuredByProject</c> dice se l'ha misurata CodexVTT.</summary>
+public sealed record AccuracyDto(string Language, double Percent, string Metric, string Source, bool MeasuredByProject);

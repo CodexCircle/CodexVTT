@@ -41,6 +41,7 @@
     <ProjectReference Include="..\CodexVtt.Core\CodexVtt.Core.csproj" />
     <ProjectReference Include="..\CodexVtt.Bridge\CodexVtt.Bridge.csproj" />
     <ProjectReference Include="..\CodexVtt.Transcription.Whisper\CodexVtt.Transcription.Whisper.csproj" />
+    <ProjectReference Include="..\CodexVtt.Transcription.Sherpa\CodexVtt.Transcription.Sherpa.csproj" />
     <ProjectReference Include="..\CodexVtt.Audio.Windows\CodexVtt.Audio.Windows.csproj" />
     <ProjectReference Include="..\CodexVtt.Models.Download\CodexVtt.Models.Download.csproj" />
     <ProjectReference Include="..\CodexVtt.Updates\CodexVtt.Updates.csproj" />

@@ -100,6 +100,20 @@ public sealed class BridgeDispatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task Models_list_tells_the_ui_the_engine_and_whether_it_is_a_preview()
+    {
+        var models = Ok(await Call("models.list")).EnumerateArray().ToList();
+
+        Assert.All(models, m =>
+        {
+            Assert.Equal("whisper", m.GetProperty("engine").GetString());
+            Assert.False(m.GetProperty("preview").GetBoolean());
+            Assert.False(m.GetProperty("requiresLanguage").GetBoolean());
+            Assert.False(m.TryGetProperty("accuracy", out _));
+        });
+    }
+
+    [Fact]
     public async Task Recommend_returns_model_and_reasons()
     {
         var recommendation = Ok(await Call("models.recommend"));
@@ -501,7 +515,7 @@ public sealed class BridgeDispatcherTests : IDisposable
 
     private sealed class EchoEngine : ITranscriptionEngine
     {
-        public Task<ITranscriptionSession> LoadAsync(string modelPath, CancellationToken ct) =>
+        public Task<ITranscriptionSession> LoadAsync(ModelDescriptor model, string modelPath, CancellationToken ct) =>
             Task.FromResult<ITranscriptionSession>(new Session());
 
         private sealed class Session : ITranscriptionSession

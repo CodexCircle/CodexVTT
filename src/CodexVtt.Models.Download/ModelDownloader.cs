@@ -8,9 +8,10 @@ using CodexVtt.Core.Models;
 namespace CodexVtt.Models.Download;
 
 /// <summary>
-/// Unico componente di CodexVTT che usa la rete per i modelli (ADR-0003, ADR-0006).
+/// Unico componente di CodexVTT che usa la rete per i modelli (ADR-0003, ADR-0006, ADR-0009).
 /// Scarica solo URL del catalogo, segue i redirect manualmente controllando ogni host contro
-/// l'allowlist, riprende i download interrotti e installa il file solo se l'hash SHA-256 coincide.
+/// l'allowlist, riprende i download interrotti e installa ogni file solo se l'hash SHA-256 coincide.
+/// Un modello a più file viene installato solo quando tutti i file sono scaricati e verificati.
 /// Le richieste non contengono dati dell'utente né delle trascrizioni.
 /// </summary>
 public sealed partial class ModelDownloader : IModelDownloader
@@ -48,45 +49,81 @@ public sealed partial class ModelDownloader : IModelDownloader
     {
         var model = _store.Catalog.Find(modelId)
             ?? throw new CodexVttException(ErrorCodes.ModelUnknown, $"Modello sconosciuto: {modelId}");
-        var url = _store.Catalog.DownloadUrl(model)
+        var files = _store.Catalog.DownloadUrls(model)
             ?? throw new CodexVttException(ErrorCodes.ModelNotVerified,
                 $"Il catalogo non ha revisione e hash fissati per {model.Id}: download disabilitato.");
 
         using (_store.BeginTransient(model, ModelState.Downloading))
         {
-            await DownloadAndInstallAsync(model, url, progress, ct).ConfigureAwait(false);
+            await DownloadAndInstallAsync(model, files, progress, ct).ConfigureAwait(false);
         }
 
         return _store.Status(model);
     }
 
-    private async Task DownloadAndInstallAsync(ModelDescriptor model, Uri url, IProgress<DownloadProgress>? progress, CancellationToken ct)
+    private async Task DownloadAndInstallAsync(
+        ModelDescriptor model,
+        IReadOnlyList<(ModelFile File, Uri Url)> files,
+        IProgress<DownloadProgress>? progress,
+        CancellationToken ct)
     {
-        var partial = Path.Combine(Path.GetDirectoryName(_store.PathFor(model))!, ".partial", model.File + ".part");
-        Directory.CreateDirectory(Path.GetDirectoryName(partial)!);
+        var folder = _store.PartialFolderFor(model);
+        Directory.CreateDirectory(folder);
 
-        var existing = File.Exists(partial) ? new FileInfo(partial).Length : 0;
-        if (existing > model.SizeBytes)
+        // Nome del file parziale: i sottopercorsi del modello diventano parte del nome, così restano nella stessa cartella.
+        string PartialOf(ModelFile file) => Path.Combine(folder, file.Path.Replace('/', '_').Replace('\\', '_') + ".part");
+
+        long alreadyThere = 0;
+        foreach (var (file, _) in files)
         {
-            File.Delete(partial);
-            existing = 0;
+            var partial = PartialOf(file);
+            if (!File.Exists(partial))
+                continue;
+            var length = new FileInfo(partial).Length;
+            if (length > file.SizeBytes)
+                File.Delete(partial);
+            else
+                alreadyThere += length;
         }
 
-        _store.EnsureDiskSpace(model.SizeBytes - existing);
-        LogStarting(model.Id, url.Host, existing);
+        _store.EnsureDiskSpace(model.SizeBytes - alreadyThere);
 
         try
         {
-            var hash = await DownloadToFileAsync(model, url, partial, existing, progress, ct).ConfigureAwait(false);
-            _store.SetTransientState(model, ModelState.Verifying);
-            if (!string.Equals(hash, model.Sha256, StringComparison.OrdinalIgnoreCase))
+            var verified = new Dictionary<string, string>();
+            long finishedBytes = 0;
+            foreach (var (file, url) in files)
             {
-                File.Delete(partial);
-                throw new CodexVttException(ErrorCodes.ModelHashMismatch, $"Il file scaricato per {model.Id} non corrisponde all'hash atteso.",
-                    new Dictionary<string, string> { ["expected"] = model.Sha256!, ["actual"] = hash });
+                var partial = PartialOf(file);
+                var existing = File.Exists(partial) ? new FileInfo(partial).Length : 0;
+                LogStarting(model.Id, url.Host, existing);
+
+                var hash = await DownloadToFileAsync(model, file, url, partial, existing, finishedBytes, progress, ct).ConfigureAwait(false);
+                if (!string.Equals(hash, file.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    File.Delete(partial);
+                    throw new CodexVttException(ErrorCodes.ModelHashMismatch, $"Il file scaricato per {model.Id} non corrisponde all'hash atteso.",
+                        new Dictionary<string, string> { ["expected"] = file.Sha256, ["actual"] = hash, ["file"] = file.Path });
+                }
+
+                verified[file.Path] = partial;
+                finishedBytes += file.SizeBytes;
             }
 
-            await _store.InstallVerifiedAsync(model, partial, hash, ct).ConfigureAwait(false);
+            _store.SetTransientState(model, ModelState.Verifying);
+            if (model.IsMultiFile)
+            {
+                await _store.InstallVerifiedFolderAsync(model, verified, ct).ConfigureAwait(false);
+                // Cartella dei parziali ormai vuota.
+                if (Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any())
+                    Directory.Delete(folder);
+            }
+            else
+            {
+                var only = files[0].File;
+                await _store.InstallVerifiedAsync(model, verified[only.Path], only.Sha256, ct).ConfigureAwait(false);
+            }
+
             LogCompleted(model.Id);
         }
         catch (HttpRequestException ex)
@@ -99,11 +136,14 @@ public sealed partial class ModelDownloader : IModelDownloader
         }
     }
 
+    /// <param name="finishedBytes">Byte dei file precedenti, già completi: il progresso è su tutto il modello.</param>
     private async Task<string> DownloadToFileAsync(
         ModelDescriptor model,
+        ModelFile file,
         Uri url,
         string partial,
         long existing,
+        long finishedBytes,
         IProgress<DownloadProgress>? progress,
         CancellationToken ct)
     {
@@ -123,7 +163,6 @@ public sealed partial class ModelDownloader : IModelDownloader
         if (!response.IsSuccessStatusCode)
             throw new HttpRequestException($"Risposta HTTP {(int)response.StatusCode}", null, response.StatusCode);
 
-        var total = existing + (response.Content.Headers.ContentLength ?? (model.SizeBytes - existing));
         var host = response.RequestMessage?.RequestUri?.Host ?? url.Host;
 
         await using var source = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false);
@@ -137,14 +176,14 @@ public sealed partial class ModelDownloader : IModelDownloader
             await target.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
             hasher.AppendData(buffer, 0, read);
             received += read;
-            if (received - lastReport >= 4 << 20 || received == total)
+            if (received - lastReport >= 4 << 20 || received == file.SizeBytes)
             {
                 lastReport = received;
-                progress?.Report(new DownloadProgress(model.Id, received, total, host));
+                progress?.Report(new DownloadProgress(model.Id, finishedBytes + received, model.SizeBytes, host));
             }
         }
 
-        progress?.Report(new DownloadProgress(model.Id, received, total, host));
+        progress?.Report(new DownloadProgress(model.Id, finishedBytes + received, model.SizeBytes, host));
         return Convert.ToHexStringLower(hasher.GetHashAndReset());
     }
 

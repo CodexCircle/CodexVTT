@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
 using CodexVtt.Core.Errors;
+using CodexVtt.Core.Hardware;
+using CodexVtt.Core.Models;
 using CodexVtt.Core.Transcription;
 using Whisper.net;
 using Whisper.net.LibraryLoader;
@@ -14,18 +16,38 @@ public sealed class WhisperEngine : ITranscriptionEngine
 {
     private static readonly Lock RuntimeGate = new();
     private static bool _runtimeConfigured;
+    private static bool _gpuInUse;
+    private readonly bool _useGpu;
 
-    public Task<ITranscriptionSession> LoadAsync(string modelPath, CancellationToken ct)
+    /// <param name="useGpu">
+    /// Prova il runtime GPU (Vulkan) se il PC ha un driver Vulkan e una CPU con AVX2; altrimenti, o se il runtime
+    /// non si carica, usa la CPU. Il runtime nativo si sceglie una volta per processo: cambiare scelta richiede di riavviare.
+    /// </param>
+    public WhisperEngine(bool useGpu = false) => _useGpu = useGpu;
+
+    /// <summary>Il PC ha almeno una scheda video utilizzabile con Vulkan? (Il solo caricatore non basta: spesso c'è senza scheda.)</summary>
+    public static bool IsVulkanGpuPresent() => GpuProbe.Devices.Count > 0;
+
+    public Task<ITranscriptionSession> LoadAsync(ModelDescriptor model, string modelPath, CancellationToken ct)
     {
-        ConfigureRuntimeOrder();
+        ConfigureRuntimeOrder(_useGpu);
         return Task.Run<ITranscriptionSession>(() =>
         {
             ct.ThrowIfCancellationRequested();
+            // I messaggi di whisper.cpp dicono quale backend ha scelto davvero (GPU o CPU).
+            var messages = new List<string>();
+            using var capture = global::Whisper.net.Logger.LogProvider.AddLogger((_, message) =>
+            {
+                if (!string.IsNullOrWhiteSpace(message))
+                {
+                    lock (messages)
+                        messages.Add(message);
+                }
+            });
             try
             {
-                var factory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions { UseGpu = false });
-                var runtime = RuntimeOptions.LoadedLibrary?.ToString() ?? "unknown";
-                return new WhisperSession(factory, runtime);
+                var factory = WhisperFactory.FromPath(modelPath, new WhisperFactoryOptions { UseGpu = _gpuInUse });
+                return new WhisperSession(factory, RuntimeLabel(RuntimeOptions.LoadedLibrary?.ToString() ?? "unknown", _gpuInUse, messages));
             }
             catch (WhisperModelLoadException ex)
             {
@@ -43,14 +65,36 @@ public sealed class WhisperEngine : ITranscriptionEngine
         }, ct);
     }
 
-    /// <summary>Ordine esplicito dei runtime: CPU standard, poi CPU senza AVX.</summary>
-    private static void ConfigureRuntimeOrder()
+    /// <summary>
+    /// Nome del runtime mostrato all'utente. «Vulkan (GPU)» solo se whisper.cpp ha davvero scelto la scheda video;
+    /// se il runtime GPU è caricato ma non ha trovato dispositivi, il lavoro gira sulla CPU e lo diciamo.
+    /// </summary>
+    public static string RuntimeLabel(string loaded, bool gpuRequested, IReadOnlyList<string> messages)
+    {
+        if (!string.Equals(loaded, "Vulkan", StringComparison.OrdinalIgnoreCase))
+            return loaded;
+        string[] copy;
+        lock (messages)
+            copy = [.. messages];
+        var usedGpu = copy.Any(m => m.Contains("whisper_backend_init_gpu", StringComparison.Ordinal)
+                                   && m.Contains("using ", StringComparison.Ordinal) && m.Contains(" backend", StringComparison.Ordinal));
+        return gpuRequested && usedGpu ? "Vulkan (GPU)" : "Cpu";
+    }
+
+    /// <summary>Ordine esplicito dei runtime: GPU (se richiesta e possibile), CPU standard, poi CPU senza AVX.</summary>
+    private static void ConfigureRuntimeOrder(bool useGpu)
     {
         lock (RuntimeGate)
         {
             if (_runtimeConfigured)
                 return;
-            RuntimeOptions.RuntimeLibraryOrder = [RuntimeLibrary.Cpu, RuntimeLibrary.CpuNoAvx];
+            // Diagnostica: i messaggi di whisper.cpp/ggml (dispositivi trovati, backend scelto) sulla console.
+            if (Environment.GetEnvironmentVariable("CODEXVTT_WHISPER_LOG") == "1")
+                global::Whisper.net.Logger.LogProvider.AddConsoleLogging(global::Whisper.net.Logger.WhisperLogLevel.Debug);
+            _gpuInUse = useGpu && IsVulkanGpuPresent() && (HardwareProbe.DetectCpuFeatures() & CpuFeatures.Avx2) != 0;
+            RuntimeOptions.RuntimeLibraryOrder = _gpuInUse
+                ? [RuntimeLibrary.Vulkan, RuntimeLibrary.Cpu, RuntimeLibrary.CpuNoAvx]
+                : [RuntimeLibrary.Cpu, RuntimeLibrary.CpuNoAvx];
             _runtimeConfigured = true;
         }
     }

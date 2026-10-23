@@ -52,6 +52,9 @@ describe('i18n', () => {
       downloadable: true,
       state: 'notInstalled',
       issues: [],
+      engine: 'whisper',
+      preview: false,
+      requiresLanguage: false,
     });
     const small = model('small', 'Small', 6);
     const turbo = model('turbo', 'Turbo', 10);

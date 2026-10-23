@@ -35,6 +35,16 @@ export type ModelState = 'notInstalled' | 'downloading' | 'verifying' | 'unverif
 
 export type CompatibilityIssue = 'insufficientMemory' | 'insufficientDisk' | 'tooSlow' | 'notPinned';
 
+/** Affidabilità dichiarata: 100 meno il WER sull'italiano, con la fonte. */
+export interface ModelAccuracy {
+  language: string;
+  percent: number;
+  metric: string;
+  source: string;
+  /** false: valore preso dalla scheda del modello, non misurato da CodexVTT. */
+  measuredByProject: boolean;
+}
+
 export interface ModelInfo {
   id: string;
   displayName: string;
@@ -50,6 +60,15 @@ export interface ModelInfo {
   state: ModelState;
   sizeOnDiskBytes?: number;
   issues: CompatibilityIssue[];
+  /** Motore che lo esegue: "whisper", "sherpa-transducer", "sherpa-canary", "sherpa-cohere". */
+  engine: string;
+  /** Anteprima: non viene mai raccomandato in automatico. */
+  preview: boolean;
+  /** Non rileva la lingua: va scelta prima di trascrivere. */
+  requiresLanguage: boolean;
+  /** Attribuzione richiesta dalla licenza (CC-BY-4.0), da mostrare. */
+  attribution?: string;
+  accuracy?: ModelAccuracy;
 }
 
 export interface HardwareProfile {
@@ -60,6 +79,8 @@ export interface HardwareProfile {
   availableMemoryBytes: number;
   cpuFeatures: string;
   freeDiskBytes: number;
+  /** Schede video utilizzabili con Vulkan; vuoto se non ce ne sono (Whisper usa la CPU). */
+  gpus?: string[];
 }
 
 export interface SystemInfo {
@@ -201,6 +222,8 @@ export interface AppSettings {
   /** Mascotte scelta; assente = Tina. */
   mascot?: MascotCharacter | null;
   historyDirectory?: string | null;
+  /** Usa la scheda video (Vulkan) per Whisper quando il PC la supporta; assente = sì. Si applica al prossimo avvio. */
+  useGpu?: boolean;
   /** Controlla da solo gli aggiornamenti all'avvio (contatta GitHub); assente = no, solo a richiesta. */
   autoCheckUpdates?: boolean;
   /** Livello del log diagnostico ("Debug" attiva la modalità debug dal prossimo avvio); assente = Information. */

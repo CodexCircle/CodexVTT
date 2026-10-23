@@ -145,10 +145,17 @@ public sealed partial class TranscriptionService : IDisposable
         try
         {
             var model = _models.Catalog.Find(job.ModelId)!;
+            // Alcuni motori (Canary) non rilevano la lingua: meglio dirlo subito che dopo minuti di decodifica.
+            if (model.RequiresLanguage && string.Equals(options.Language, "auto", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new CodexVttException(ErrorCodes.LanguageRequired, $"Il modello {model.DisplayName} richiede di scegliere la lingua.",
+                    new Dictionary<string, string> { ["model"] = model.DisplayName });
+            }
+
             var modelPath = await _models.RequireReadyAsync(job.ModelId, ct).ConfigureAwait(false);
             Report(job, JobStatus.Decoding, 0, TimeSpan.Zero, info.Duration);
 
-            await using var session = await _engine.LoadAsync(modelPath, ct).ConfigureAwait(false);
+            await using var session = await _engine.LoadAsync(model, modelPath, ct).ConfigureAwait(false);
             using var reader = _audio.Open(job.AudioId);
 
             string? language = null;
@@ -194,7 +201,7 @@ public sealed partial class TranscriptionService : IDisposable
                 info.FileName,
                 info.Duration,
                 language,
-                new ModelUsage(model.Id, model.DisplayName, model.File, model.Sha256 ?? "", session.Runtime),
+                new ModelUsage(model.Id, model.DisplayName, model.File, model.Fingerprint, session.Runtime),
                 job.Partial.ToList(),
                 watch.Elapsed,
                 DateTimeOffset.Now);

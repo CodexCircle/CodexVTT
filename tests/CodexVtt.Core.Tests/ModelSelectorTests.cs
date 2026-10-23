@@ -18,12 +18,28 @@ public class ModelSelectorTests
         Assert.NotEmpty(Catalog.Models);
         Assert.All(Catalog.Models, m =>
         {
-            Assert.StartsWith("ggml-", m.File, StringComparison.Ordinal);
             Assert.True(m.SizeBytes > 0);
             Assert.True(m.RamRequiredBytes > 0);
-            Assert.Equal("MIT", m.License);
+            Assert.Contains(m.License, new[] { "MIT", "CC-BY-4.0", "Apache-2.0" });
+            if (m.Engine == "whisper")
+            {
+                Assert.StartsWith("ggml-", m.File, StringComparison.Ordinal);
+                Assert.False(m.IsMultiFile);
+                Assert.Equal("MIT", m.License);
+            }
+            else
+            {
+                // Motori nuovi: cartella con più file, mai raccomandati da soli, con l'attribuzione richiesta dalla licenza.
+                Assert.True(m.IsMultiFile);
+                Assert.True(m.Preview);
+                Assert.False(string.IsNullOrWhiteSpace(m.Attribution));
+                Assert.Equal(m.SizeBytes, m.Files!.Sum(f => f.SizeBytes));
+            }
         });
         Assert.Equal(Catalog.Models.Count, Catalog.Models.Select(m => m.QualityRank).Distinct().Count());
+        Assert.Contains(Catalog.Models, m => m.Engine == "sherpa-transducer");
+        Assert.Contains(Catalog.Models, m => m.Engine == "sherpa-canary" && m.RequiresLanguage);
+        Assert.Contains(Catalog.Models, m => m.Engine == "sherpa-cohere" && m.RequiresLanguage);
     }
 
     [Fact]
@@ -32,13 +48,31 @@ public class ModelSelectorTests
         Assert.Matches("^[0-9a-f]{40}$", Catalog.Source.Revision);
         Assert.All(Catalog.Models, m =>
         {
-            Assert.Matches("^[0-9a-f]{64}$", m.Sha256);
-            var url = Catalog.DownloadUrl(m)!;
-            Assert.Equal("https", url.Scheme);
-            Assert.Equal("huggingface.co", url.Host);
-            Assert.Contains(Catalog.Source.Revision!, url.AbsolutePath, StringComparison.Ordinal);
-            Assert.EndsWith("/" + m.File, url.AbsolutePath, StringComparison.Ordinal);
+            var downloads = Catalog.DownloadUrls(m)!;
+            Assert.Equal(m.IsMultiFile ? m.Files!.Count : 1, downloads.Count);
+            var revision = (m.Source ?? Catalog.Source).Revision!;
+            Assert.Matches("^[0-9a-f]{40}$", revision);
+            foreach (var (file, url) in downloads)
+            {
+                Assert.Matches("^[0-9a-f]{64}$", file.Sha256);
+                Assert.Equal("https", url.Scheme);
+                Assert.Equal("huggingface.co", url.Host);
+                Assert.Contains(revision, url.AbsolutePath, StringComparison.Ordinal);
+                Assert.EndsWith("/" + file.Path, url.AbsolutePath, StringComparison.Ordinal);
+            }
         });
+    }
+
+    [Fact]
+    public void Preview_models_are_never_recommended()
+    {
+        var hardware = TestData.Hardware() with { LogicalCores = 32, TotalMemoryBytes = 64L * 1024 * 1024 * 1024, FreeDiskBytes = 500L * 1024 * 1024 * 1024 };
+
+        var recommendation = ModelSelector.Recommend(hardware, Catalog, new HashSet<string>());
+
+        Assert.NotNull(recommendation.Recommended);
+        Assert.False(recommendation.Recommended!.Preview);
+        Assert.Equal("whisper", recommendation.Recommended.Engine);
     }
 
     [Fact]

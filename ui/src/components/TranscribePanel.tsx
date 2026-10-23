@@ -18,6 +18,8 @@ export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onO
   const pending = app.queue.filter((i) => i.status === 'queued' || (i.status === 'failed' && i.audioId)).length;
   const queuedDuration = app.queue.reduce((sum, i) => sum + (i.info?.duration ?? 0), 0);
   const ready = Boolean(app.audio) || (inQueue && pending > 0);
+  // Canary e Cohere non rilevano la lingua: finché è «automatica» non si può avviare.
+  const needsLanguage = Boolean(app.activeModel?.requiresLanguage) && language === 'auto';
   const result = app.open && <ResultView result={app.open.result} onExport={(f) => void app.exportAs(f)} />;
 
   if (app.readyModels.length === 0) {
@@ -111,13 +113,13 @@ export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onO
             </button>
           ) : inQueue ? (
             pending > 0 && (
-              <button type="button" className="bar__action primary" onClick={() => app.startQueue(language)}>
+              <button type="button" className="bar__action primary" disabled={needsLanguage} onClick={() => app.startQueue(language)}>
                 {t('queueStart')}
               </button>
             )
           ) : (
             app.audio && (
-              <button type="button" className="bar__action primary" onClick={() => void app.start(language)}>
+              <button type="button" className="bar__action primary" disabled={needsLanguage} onClick={() => void app.start(language)}>
                 {t('start')}
               </button>
             )
@@ -167,7 +169,12 @@ export function TranscribePanel({ app, onOpenModels }: { app: CodexVttState; onO
                 ))}
               </select>
             </label>
-            {!app.audio && !inQueue && <span className="muted">{t('noAudioHint')}</span>}
+            {needsLanguage && (
+              <span className="warning" role="status">
+                {t('languageRequiredHint')}
+              </span>
+            )}
+            {!app.audio && !inQueue && !needsLanguage && <span className="muted">{t('noAudioHint')}</span>}
           </div>
         )}
       </div>

@@ -20,7 +20,8 @@ public sealed record HardwareProfile(
     long TotalMemoryBytes,
     long AvailableMemoryBytes,
     CpuFeatures CpuFeatures,
-    long FreeDiskBytes)
+    long FreeDiskBytes,
+    IReadOnlyList<string>? Gpus = null)
 {
     /// <summary>Il runtime whisper.cpp standard richiede AVX, AVX2, FMA e F16C su x86/x64 (ADR-0002).</summary>
     public bool SupportsStandardRuntime =>

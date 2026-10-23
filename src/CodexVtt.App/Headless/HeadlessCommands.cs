@@ -12,6 +12,7 @@ using CodexVtt.Core.Logging;
 using CodexVtt.Core.Models;
 using CodexVtt.Core.Settings;
 using CodexVtt.Core.Transcription;
+using CodexVtt.Transcription.Sherpa;
 using CodexVtt.Transcription.Whisper;
 
 namespace CodexVtt.App.Headless;
@@ -50,6 +51,19 @@ internal static class HeadlessCommands
         }
     }
 
+    /// <summary>Gli stessi motori dell'app (ADR-0009); la modalità senza GUI usa sempre la CPU.</summary>
+    private static EngineRegistry Engines()
+    {
+        var sherpa = new SherpaEngine();
+        return new EngineRegistry(new Dictionary<string, ITranscriptionEngine>
+        {
+            ["whisper"] = new WhisperEngine(),
+            [SherpaEngine.Transducer] = sherpa,
+            [SherpaEngine.Canary] = sherpa,
+            [SherpaEngine.Cohere] = sherpa,
+        });
+    }
+
     private static async Task<int> DiagnoseAsync(string[] args)
     {
         var outDir = ValueOf(args, DiagnoseFlag) ?? throw new ArgumentException("Specificare la cartella di output dopo --diagnose.");
@@ -82,7 +96,7 @@ internal static class HeadlessCommands
 
         var services = Create(args);
         var audio = new AudioLibrary([new WavDecoder(), new MediaFoundationDecoder()], MauiProgram.MaxAudioDuration);
-        using var transcription = new TranscriptionService(services.Models, audio, new WhisperEngine(), new Logger<TranscriptionService>(services.Loggers));
+        using var transcription = new TranscriptionService(services.Models, audio, Engines(), new Logger<TranscriptionService>(services.Loggers));
 
         var handle = audio.Register(Path.GetFullPath(audioPath));
         var result = await transcription.RunToCompletionAsync(handle.AudioId, modelId, new TranscriptionOptions(language), CancellationToken.None);

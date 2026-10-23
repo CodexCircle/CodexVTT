@@ -14,6 +14,8 @@
     <PackageReference Include="Whisper.net" />
     <PackageReference Include="Whisper.net.Runtime" />
     <PackageReference Include="Whisper.net.Runtime.NoAvx" />
+    <!-- ADR-0009: GPU con Vulkan (NVIDIA, AMD, Intel); si prova solo se il PC ha il driver Vulkan, altrimenti CPU. -->
+    <PackageReference Include="Whisper.net.Runtime.Vulkan" />
   </ItemGroup>
 
 </Project>
