@@ -101,6 +101,10 @@ Le versioni seguono [SemVer 2.0](https://semver.org/lang/it/) (`X.Y.Z[-fase.N]`)
 
 Velopack considera `1.0.1` più recente di `1.0.0`, quindi ogni correzione viene proposta come aggiornamento. Eventuali build di prova (interfacce a tema, funzionalità non ancora integrate) vanno pubblicate su un canale separato (`vpk pack --channel <nome>`).
 
+## Licenza
+
+CodexVTT è distribuito con licenza [Apache-2.0](LICENSE). Le licenze dei componenti di terzi e dei modelli, con le attribuzioni richieste (per esempio CC-BY-4.0 per i modelli NVIDIA), sono in [NOTICE](NOTICE) e in [docs/architecture/licenze.md](docs/architecture/licenze.md).
+
 ## Documentazione
 
 - [Specifica di prodotto V1](docs/spec/v1-product-spec.md)

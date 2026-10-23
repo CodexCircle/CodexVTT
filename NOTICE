@@ -1,0 +1,57 @@
+CodexVTT
+Copyright 2026 CodexCircle
+
+Questo prodotto è distribuito con licenza Apache-2.0 (vedi LICENSE).
+
+Include o usa i componenti di terzi elencati sotto, ciascuno con la sua licenza.
+
+--------------------------------------------------------------------------------
+Modelli di trascrizione (scaricati dall'utente, mai inclusi nel repository)
+--------------------------------------------------------------------------------
+
+OpenAI Whisper — pesi dei modelli, MIT License
+  https://github.com/openai/whisper
+  Copyright (c) 2022 OpenAI
+  File GGML convertiti da ggerganov/whisper.cpp (Hugging Face), MIT License.
+
+Parakeet TDT 0.6B v3 by NVIDIA, licensed under CC-BY-4.0
+  https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3
+  Convertito in int8 ONNX per sherpa-onnx da csukuangfj
+  (https://huggingface.co/csukuangfj/sherpa-onnx-nemo-parakeet-tdt-0.6b-v3-int8).
+  Licenza: https://creativecommons.org/licenses/by/4.0/
+
+Canary-1B-v2 by NVIDIA, licensed under CC-BY-4.0
+  https://huggingface.co/nvidia/canary-1b-v2
+  Convertito in int8 ONNX per sherpa-onnx da bnoordhuis (export non ufficiale)
+  (https://huggingface.co/bnoordhuis/canary-1b-v2-sherpa-onnx-nl-int8).
+  Licenza: https://creativecommons.org/licenses/by/4.0/
+
+--------------------------------------------------------------------------------
+Librerie incluse nell'app
+--------------------------------------------------------------------------------
+
+whisper.cpp / ggml — MIT License — Copyright (c) The ggml authors
+Whisper.net, Whisper.net.Runtime — MIT License
+sherpa-onnx (k2-fsa) — Apache License 2.0
+ONNX Runtime (Microsoft) — MIT License
+NAudio — MIT License
+Velopack — MIT License
+.NET, .NET MAUI, Microsoft.Extensions.* — MIT License
+React, Vite — MIT License
+TypeScript — Apache License 2.0
+
+--------------------------------------------------------------------------------
+Solo nell'immagine Docker
+--------------------------------------------------------------------------------
+
+FFmpeg (pacchetto della distribuzione Ubuntu) — LGPL/GPL secondo la build.
+Viene installato nell'immagine con il gestore di pacchetti e invocato come
+programma esterno; non è incluso nel repository né nell'app per Windows.
+
+--------------------------------------------------------------------------------
+Illustrazioni
+--------------------------------------------------------------------------------
+
+Le mascotte Tina (lontra) e Giulio (panda rosso) provengono da svgapp.ai. La loro
+licenza d'uso non è ancora stata verificata e NON è coperta dalla licenza Apache-2.0
+del codice. Vedi l'issue sulle mascotte nel repository.
