@@ -53,6 +53,7 @@ public static class ErrorCodes
     public const string HistorySaveFailed = "history_save_failed";
     public const string HistoryFolderBlocked = "history_folder_blocked";
     public const string BenchmarkAudioInvalid = "benchmark_audio_invalid";
+    public const string BenchmarkNothingSelected = "benchmark_nothing_selected";
     public const string FolderTestFailed = "folder_test_failed";
     public const string NotAvailableOnServer = "not_available_on_server";
     public const string LanguageRequired = "language_required";

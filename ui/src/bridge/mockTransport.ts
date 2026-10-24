@@ -110,7 +110,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
   let settings: AppSettings = { language: 'auto', showMascot: true, exportIncludeHeader: false, uiLanguage: options.uiLanguage };
   // Una misura per modello e brano (chiave `modello|brano`); `|` vuoto = file scelto dall'utente, senza testo di riferimento.
   const benchEntries = new Map<string, BenchmarkEntry>();
-  const benchEntry = (modelId: string, speed: number, clip?: { id: string; language: string; scenario: BenchmarkScenario; accuracy: number }): BenchmarkEntry => ({
+  const benchEntry = (modelId: string, speed: number, clip?: { id: string; title: string; language: string; scenario: BenchmarkScenario; accuracy: number }): BenchmarkEntry => ({
     modelId,
     runtime: 'Cpu',
     threads: 8,
@@ -118,7 +118,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
     loadSeconds: 2,
     speed,
     measuredAt: '2026-10-24T10:00:00Z',
-    ...(clip === undefined ? {} : { accuracy: clip.accuracy, clipId: clip.id, language: clip.language, scenario: clip.scenario }),
+    ...(clip === undefined ? {} : { accuracy: clip.accuracy, clipId: clip.id, clipTitle: clip.title, language: clip.language, scenario: clip.scenario }),
     stale: 'none',
   });
   for (const [id, speed] of Object.entries(options.benchmark ?? {})) benchEntries.set(`${id}|`, benchEntry(id, speed));
@@ -632,7 +632,14 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         benchCancel = false;
         const outcomes: BenchmarkProgress[] = [];
         // Un passo per modello e brano; con un file proprio c'è un solo brano e nessuna affidabilità.
-        const jobs = payload?.useReference ? mockClips.map((c) => ({ clip: c })) : [{ clip: undefined }];
+        const chosen = mockClips.filter(
+          (c) => (!Array.isArray(payload.languages) || payload.languages.includes(c.language)) && (!Array.isArray(payload.scenarios) || payload.scenarios.includes(c.scenario)),
+        );
+        if (payload?.useReference && chosen.length === 0) {
+          benchRunning = false;
+          throw { code: 'benchmark_nothing_selected', message: 'nothing selected' };
+        }
+        const jobs = payload?.useReference ? chosen.map((c) => ({ clip: c })) : [{ clip: undefined }];
         const total = ready.length * jobs.length;
         const step = (i: number) => {
           if (benchCancel) {
@@ -653,7 +660,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
             // Il rumore costa qualche punto a tutti; i modelli più pesanti perdono meno.
             const accuracy = clip ? Math.round((100 - m.relativeCost * 2 - (clip.scenario === 'noisy' ? 6 : 0) - (clip.language === 'en' ? 1 : 0)) * 10) / 10 : undefined;
             if (clip && accuracy !== undefined) {
-              benchEntries.set(`${m.id}|${clip.id}`, benchEntry(m.id, speed, { id: clip.id, language: clip.language, scenario: clip.scenario, accuracy }));
+              benchEntries.set(`${m.id}|${clip.id}`, benchEntry(m.id, speed, { id: clip.id, title: clip.title, language: clip.language, scenario: clip.scenario, accuracy }));
             } else {
               benchEntries.set(`${m.id}|`, benchEntry(m.id, speed));
             }

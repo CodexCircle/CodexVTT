@@ -338,6 +338,28 @@ public sealed class BridgeDispatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task Benchmark_runs_only_the_chosen_languages_and_scenarios_and_downloads_only_their_files()
+    {
+        _shell.NextOpen = _dir.File("base.bin", ModelContent);
+        Ok(await Call("models.import"));
+
+        Ok(await Call("benchmark.start", new { useReference = true, languages = new[] { "it" }, scenarios = new[] { "noisy" } }));
+        await _shell.WaitForEventAsync("benchmark.completed");
+
+        var italianClean = BenchmarkClips.All.Count(c => c.Language == "it" && !c.IsDerived);
+        Assert.Equal(italianClean, _reference.Downloads);
+        var entries = Ok(await Call("benchmark.get")).GetProperty("entries").EnumerateArray().ToList();
+        Assert.Equal(italianClean, entries.Count);
+        Assert.All(entries, e =>
+        {
+            Assert.Equal("it", e.GetProperty("language").GetString());
+            Assert.Equal("noisy", e.GetProperty("scenario").GetString());
+        });
+
+        Assert.Equal(ErrorCodes.BenchmarkNothingSelected, ErrorCode(await Call("benchmark.start", new { useReference = true, languages = Array.Empty<string>() })));
+    }
+
+    [Fact]
     public async Task Benchmark_refuses_files_of_unsuitable_length_and_cannot_start_over_a_transcription()
     {
         _shell.NextOpen = _dir.File("corto.wav", TestData.Wav(16000, 1, 2));

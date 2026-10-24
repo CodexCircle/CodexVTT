@@ -255,6 +255,8 @@ export interface BenchmarkEntry {
   accuracy?: number;
   /** Brano ufficiale della misura, la sua lingua (it, en) e la condizione; assenti con un file proprio. */
   clipId?: string;
+  /** Titolo del brano ufficiale, per il dettaglio per brano. */
+  clipTitle?: string;
   language?: string;
   scenario?: BenchmarkScenario;
   stale: BenchmarkStale;
@@ -461,7 +463,7 @@ export interface Commands {
   'diagnostics.openLogs': { req: void; res: { opened: boolean } };
   /** Apre la selezione della cartella: non la salva, va prima testata. */
   /** Sceglie il file di riferimento (dialog nativo) e avvia il test su tutti i modelli pronti; null se si annulla. */
-  'benchmark.start': { req: { useReference?: boolean } | void; res: { started: boolean; fileName: string; duration: number } | null };
+  'benchmark.start': { req: { useReference?: boolean; languages?: string[]; scenarios?: BenchmarkScenario[] } | void; res: { started: boolean; fileName: string; duration: number } | null };
   /** File di riferimento ufficiale: indirizzo, dimensione, hash e licenza da mostrare prima di scaricarlo. Non scarica nulla. */
   'benchmark.reference': { req: void; res: BenchmarkReferenceInfo };
   'benchmark.cancel': { req: void; res: { cancelling: boolean } };

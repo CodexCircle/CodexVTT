@@ -340,6 +340,22 @@ describe('App', () => {
     expect(await within(bench).findByRole('button', { name: 'Usa i brani ufficiali e avvia' })).toBeInTheDocument();
   });
 
+  it('lets the user choose languages and conditions, and tests only those', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+
+    await user.click(await within(bench).findByRole('checkbox', { name: 'Inglese' }));
+    await user.click(within(bench).getByRole('checkbox', { name: 'Pulito' }));
+    expect(within(bench).getByText(/Brani per ogni modello: 1,/)).toBeInTheDocument();
+
+    await user.click(within(bench).getByRole('button', { name: 'Scarica i brani ufficiali e avvia' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Scarica e avvia' }));
+    const reliability = await within(bench).findByRole('table', { name: 'Affidabilità per lingua e condizione' });
+    expect(within(reliability).getByRole('columnheader', { name: 'Italiano' })).toBeInTheDocument();
+    expect(within(reliability).queryByRole('columnheader', { name: 'Inglese' })).not.toBeInTheDocument();
+  });
+
   it('measures the reliability only with the official file and shows it in the table and in the «i»', async () => {
     const { user } = setup({ installed: ['base'] });
     await user.click(await screen.findByRole('button', { name: 'Modelli' }));

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BridgeCallError, type BridgeClient } from '../bridge/client';
 import type {
+  BenchmarkScenario,
   AppSettings,
   BenchmarkEstimate,
   BenchmarkProgress,
@@ -340,9 +341,9 @@ export function useCodexVtt(client: BridgeClient) {
     pendingDurations,
     benchmarkReference: () => guard(() => client.call('benchmark.reference')),
     /** Con `useReference` scarica (se manca) il file ufficiale; altrimenti si sceglie un file proprio. */
-    startBenchmark: (useReference = false) =>
+    startBenchmark: (useReference = false, selection?: { languages: string[]; scenarios: BenchmarkScenario[] }) =>
       guard(async () => {
-        const started = await client.call('benchmark.start', useReference ? { useReference: true } : undefined);
+        const started = await client.call('benchmark.start', useReference ? { useReference: true, ...selection } : undefined);
         if (started) setBenchmark((b) => ({ ...b, running: true }));
       }),
     cancelBenchmark: () => guard(() => client.call('benchmark.cancel')),
