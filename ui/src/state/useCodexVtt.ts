@@ -451,6 +451,15 @@ export function useCodexVtt(client: BridgeClient) {
         await client.call('history.update', { id, title: title.trim() || null });
         await refreshHistory();
       }),
+    /** Indirizzo per riprodurre l'audio originale di una trascrizione, o undefined se non c'è più. */
+    audioFor: async (id: string): Promise<string | undefined> => {
+      try {
+        const audio = await client.call('history.audio', { id });
+        return audio.available ? audio.url : undefined;
+      } catch {
+        return undefined;
+      }
+    },
     /** Salva nella cronologia il testo corretto; restituisce true se è stato scritto. */
     saveEdits: async (id: string, segments: { start: number; end: number; text: string }[]): Promise<boolean> => {
       const saved = await guard(async () => {
