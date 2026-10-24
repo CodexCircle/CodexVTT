@@ -3,6 +3,8 @@ namespace CodexVtt.Core.Benchmark;
 /// <summary>
 /// Misura di un modello sul file di riferimento. <c>LoadSeconds</c> è il tempo fisso (caricamento del modello e prima finestra),
 /// <c>Speed</c> i secondi di audio per secondo reale dopo il caricamento (4 = quattro volte il tempo reale).
+/// <c>Accuracy</c> è l'affidabilità in percentuale (100 meno il tasso di errore sulle parole contro il testo del file ufficiale);
+/// null con un file scelto dall'utente, di cui non c'è un testo di riferimento.
 /// </summary>
 public sealed record BenchmarkEntry(
     string ModelId,
@@ -13,7 +15,8 @@ public sealed record BenchmarkEntry(
     double LoadSeconds,
     double Speed,
     DateTimeOffset MeasuredAt,
-    string AppVersion);
+    string AppVersion,
+    double? Accuracy = null);
 
 /// <summary>Contenuto di benchmark.json: le misure valgono per l'impronta dell'hardware con cui sono state fatte.</summary>
 public sealed record BenchmarkFile(int Version, string Fingerprint, IReadOnlyList<BenchmarkEntry> Entries)

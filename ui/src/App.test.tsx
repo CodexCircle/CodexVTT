@@ -340,6 +340,24 @@ describe('App', () => {
     expect(await within(bench).findByRole('button', { name: 'Usa il file ufficiale e avvia' })).toBeInTheDocument();
   });
 
+  it('measures the reliability only with the official file and shows it in the table and in the «i»', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+
+    await user.click(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' }));
+    await screen.findByText('Test bench completato.');
+    const own = within(within(bench).getByRole('table', { name: 'Risultati del test' })).getByRole('row', { name: /Base/ });
+    expect(within(own).getByTitle(/Non misurata/)).toBeInTheDocument();
+
+    await user.click(within(bench).getByRole('button', { name: 'Scarica il file ufficiale e avvia' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Scarica e avvia' }));
+    await waitFor(() => expect(within(within(bench).getByRole('table', { name: 'Risultati del test' })).getByRole('row', { name: /Base/ })).toHaveTextContent(/\d+(,\d)?%/));
+
+    const tip = within(screen.getByRole('listitem', { name: 'Base' })).getByRole('tooltip', { hidden: true });
+    expect(tip).toHaveTextContent(/misurata da CodexVTT su questo PC/);
+  });
+
   it('can cancel the Test bench and keeps what was already measured', async () => {
     const { user } = setup({ installed: ['base', 'small'], tick: 20 });
     await user.click(await screen.findByRole('button', { name: 'Modelli' }));

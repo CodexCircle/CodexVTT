@@ -53,6 +53,7 @@ public sealed partial class BridgeDispatcher
                 v.Entry.LoadSeconds,
                 v.Entry.Speed,
                 v.Entry.MeasuredAt,
+                v.Entry.Accuracy,
                 Stale = v.Stale,
             }).ToList(),
         };
@@ -98,7 +99,8 @@ public sealed partial class BridgeDispatcher
         {
             try
             {
-                var outcomes = await _benchmark.RunAsync(handle.AudioId, seconds, fingerprint, version, settings.Language, threads, cts.Token).ConfigureAwait(false);
+                var outcomes = await _benchmark.RunAsync(handle.AudioId, seconds, fingerprint, version, settings.Language, threads, cts.Token,
+                    request.UseReference == true ? BenchmarkReferenceText.Text : null).ConfigureAwait(false);
                 Emit("benchmark.completed", new { Outcomes = outcomes, Snapshot = BenchmarkSnapshot() });
             }
             catch (OperationCanceledException)

@@ -249,6 +249,8 @@ export interface BenchmarkEntry {
   /** Secondi di audio per secondo reale dopo il caricamento (4 = quattro volte il tempo reale). */
   speed: number;
   measuredAt: string;
+  /** Affidabilità in percentuale (100 meno l'errore sulle parole) contro il testo del file ufficiale; assente con un file proprio. */
+  accuracy?: number;
   stale: BenchmarkStale;
 }
 
@@ -264,6 +266,7 @@ export interface BenchmarkProgress {
   phase: 'running' | 'done' | 'failed';
   speed?: number;
   loadSeconds?: number;
+  accuracy?: number;
   errorCode?: string;
 }
 

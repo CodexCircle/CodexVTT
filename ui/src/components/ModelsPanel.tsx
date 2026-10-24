@@ -96,7 +96,10 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
                 )}
                 <span className={`state state--${m.state}`}>{t(`state_${m.state}` as MessageKey)}</span>
               </div>
-              <ModelInfoTip model={m} />
+              <ModelInfoTip
+                model={m}
+                measuredAccuracy={app.benchmark.entries.find((e) => e.modelId === m.id && e.stale === 'none' && e.accuracy !== undefined)?.accuracy}
+              />
               {m.issues.length > 0 && <div className="model__issues">{t('warning', { issues: issues(m) })}</div>}
               {download && (
                 <div className="download">

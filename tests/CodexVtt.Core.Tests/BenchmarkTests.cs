@@ -272,6 +272,23 @@ public sealed class BenchmarkRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task Accuracy_is_measured_against_the_reference_text_only_when_there_is_one()
+    {
+        await _models.ImportAsync(_dir.File("base.bin", BaseContent));
+
+        // Il motore di prova dice sempre «testo»: contro «Testo.» è identico, contro «testo altro» manca una parola su due.
+        var exact = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, CancellationToken.None, "Testo.");
+        Assert.Equal(100, Assert.Single(exact).Accuracy);
+        Assert.Equal(100, Assert.Single(_results.Read().Entries).Accuracy);
+
+        var half = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, CancellationToken.None, "testo altro");
+        Assert.Equal(50, Assert.Single(half).Accuracy);
+
+        var none = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, CancellationToken.None);
+        Assert.Null(Assert.Single(none).Accuracy);
+    }
+
+    [Fact]
     public async Task The_first_model_is_warmed_up_once_and_only_the_measured_run_is_saved()
     {
         await _models.ImportAsync(_dir.File("base.bin", BaseContent));
