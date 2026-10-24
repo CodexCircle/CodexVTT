@@ -1,5 +1,5 @@
 import { useId, useState } from "react";
-import type { ModelInfo } from "../bridge/protocol";
+import type { BenchmarkReliability, ModelInfo } from "../bridge/protocol";
 import { useI18n } from "../i18n/i18n";
 
 /**
@@ -9,12 +9,15 @@ import { useI18n } from "../i18n/i18n";
  */
 export function ModelInfoTip({
   model,
-  measuredAccuracy,
+  measured,
 }: {
   model: ModelInfo;
-  measuredAccuracy?: number;
+  /** Affidabilità misurata dal Test bench per lingua; vuoto se il modello non è stato misurato con i brani ufficiali. */
+  measured?: BenchmarkReliability[];
 }) {
-  const { t, formatBytes } = useI18n();
+  const { t, formatBytes, languageName } = useI18n();
+  const percent = (value?: number) =>
+    value === undefined ? "—" : `${new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value)}%`;
   const [open, setOpen] = useState(false);
   const id = useId();
   const accuracy = model.accuracy;
@@ -47,14 +50,23 @@ export function ModelInfoTip({
           {t("infoNeedRam", { ram: formatBytes(model.ramRequiredBytes) })}
         </span>
         <strong>{t("infoReliability")}</strong>
-        <span>
-          {measuredAccuracy !== undefined
-            ? t("accuracyBenchmark", {
-                percent: new Intl.NumberFormat(undefined, {
-                  maximumFractionDigits: 1,
-                }).format(measuredAccuracy),
-              })
-            : accuracy
+        {measured && measured.length > 0 ? (
+          <>
+            <span>{t("accuracyBenchmark")}</span>
+            {measured.map((r) => (
+              <span key={r.language}>
+                {t("accuracyBenchmarkLine", {
+                  language: languageName(r.language),
+                  clean: percent(r.clean),
+                  noisy: percent(r.noisy),
+                  overall: percent(r.overall),
+                })}
+              </span>
+            ))}
+          </>
+        ) : (
+          <span>
+            {accuracy
               ? `${t("accuracyBadge", { percent: new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(accuracy.percent) })} · ${t(
                   "accuracyTip",
                   {
@@ -68,7 +80,8 @@ export function ModelInfoTip({
                   },
                 )}`
               : t("accuracyUnknown")}
-        </span>
+          </span>
+        )}
       </span>
     </span>
   );

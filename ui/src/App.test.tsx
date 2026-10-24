@@ -308,7 +308,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Modelli' }));
     const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
     expect(within(bench).getByText('Nessuna misura ancora.')).toBeInTheDocument();
-    expect(within(bench).getByText(/file di riferimento ufficiale/)).toBeInTheDocument();
+    expect(within(bench).getByText(/Puoi usare i brani ufficiali/)).toBeInTheDocument();
 
     await user.click(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' }));
 
@@ -323,9 +323,9 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Modelli' }));
     const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
 
-    await user.click(within(bench).getByRole('button', { name: 'Scarica il file ufficiale e avvia' }));
-    const dialog = await screen.findByRole('dialog', { name: 'Scaricare il file di riferimento?' });
-    expect(within(dialog).getByText(/https:\/\/archive\.org\/download\//)).toBeInTheDocument();
+    await user.click(within(bench).getByRole('button', { name: 'Scarica i brani ufficiali e avvia' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Scaricare i file di riferimento?' });
+    expect(within(dialog).getAllByText(/https:\/\/archive\.org\/download\//)).toHaveLength(2);
     expect(within(dialog).getByText(/4d0f7bfe60934ce8/)).toBeInTheDocument();
     expect(within(dialog).getByText(/Pubblico dominio/)).toBeInTheDocument();
 
@@ -333,11 +333,11 @@ describe('App', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(within(bench).getByText('Nessuna misura ancora.')).toBeInTheDocument();
 
-    await user.click(within(bench).getByRole('button', { name: 'Scarica il file ufficiale e avvia' }));
+    await user.click(within(bench).getByRole('button', { name: 'Scarica i brani ufficiali e avvia' }));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Scarica e avvia' }));
 
     expect(await screen.findByText('Test bench completato.')).toBeInTheDocument();
-    expect(await within(bench).findByRole('button', { name: 'Usa il file ufficiale e avvia' })).toBeInTheDocument();
+    expect(await within(bench).findByRole('button', { name: 'Usa i brani ufficiali e avvia' })).toBeInTheDocument();
   });
 
   it('measures the reliability only with the official file and shows it in the table and in the «i»', async () => {
@@ -347,15 +347,40 @@ describe('App', () => {
 
     await user.click(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' }));
     await screen.findByText('Test bench completato.');
-    const own = within(within(bench).getByRole('table', { name: 'Risultati del test' })).getByRole('row', { name: /Base/ });
-    expect(within(own).getByTitle(/Non misurata/)).toBeInTheDocument();
+    // Con un file proprio non c'è un testo di riferimento: nessuna tabella di affidabilità.
+    expect(within(bench).getByText(/Non misurata/)).toBeInTheDocument();
+    expect(within(bench).queryByRole('table', { name: 'Affidabilità per lingua e condizione' })).not.toBeInTheDocument();
 
-    await user.click(within(bench).getByRole('button', { name: 'Scarica il file ufficiale e avvia' }));
+    await user.click(within(bench).getByRole('button', { name: 'Scarica i brani ufficiali e avvia' }));
     await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Scarica e avvia' }));
-    await waitFor(() => expect(within(within(bench).getByRole('table', { name: 'Risultati del test' })).getByRole('row', { name: /Base/ })).toHaveTextContent(/\d+(,\d)?%/));
+    const reliability = await within(bench).findByRole('table', { name: 'Affidabilità per lingua e condizione' });
+    expect(within(reliability).getByRole('row', { name: /Base/ })).toHaveTextContent(/\d+(,\d)?%/);
+    // Italiano e inglese, ognuno con pulito, rumore e media.
+    expect(within(reliability).getByRole('columnheader', { name: 'Italiano' })).toBeInTheDocument();
+    expect(within(reliability).getByRole('columnheader', { name: 'Inglese' })).toBeInTheDocument();
+    expect(within(reliability).getAllByRole('columnheader', { name: 'Rumore' })).toHaveLength(2);
 
     const tip = within(screen.getByRole('listitem', { name: 'Base' })).getByRole('tooltip', { hidden: true });
     expect(tip).toHaveTextContent(/misurata da CodexVTT su questo PC/);
+    expect(tip).toHaveTextContent(/Italiano: pulito .*% · rumore .*% · media .*%/);
+    expect(tip).toHaveTextContent(/Inglese: pulito/);
+  });
+
+  it('recommends on the Home page the best model for the chosen language once the official test is done', async () => {
+    const { user } = setup({ installed: ['base', 'small'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+    await user.click(within(bench).getByRole('button', { name: 'Scarica i brani ufficiali e avvia' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Scarica e avvia' }));
+    await screen.findByText('Test bench completato.');
+
+    await user.click(screen.getByRole('button', { name: 'Home' }));
+    await user.selectOptions(await screen.findByLabelText('Lingua'), 'en');
+    expect(await screen.findByTestId('language-recommendation')).toHaveTextContent(/per Inglese/);
+    await user.selectOptions(screen.getByLabelText('Lingua'), 'it');
+    await waitFor(() => expect(screen.getByTestId('language-recommendation')).toHaveTextContent(/per Italiano/));
+    await user.selectOptions(screen.getByLabelText('Lingua'), 'auto');
+    await waitFor(() => expect(screen.getByTestId('language-recommendation')).toHaveTextContent(/in media sulle lingue provate/));
   });
 
   it('can cancel the Test bench and keeps what was already measured', async () => {

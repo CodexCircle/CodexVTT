@@ -14,11 +14,13 @@ public sealed class ReferenceFileDownloaderTests : IDisposable
 
     public void Dispose() => _dir.Dispose();
 
-    private ReferenceFileDownloader Create(Func<HttpRequestMessage, HttpResponseMessage> handler, string url = "https://archive.org/download/x/y.mp3", byte[]? expected = null)
+    private ReferenceFileDownloader Create(Func<HttpRequestMessage, HttpResponseMessage> handler) =>
+        new(new HttpClient(new FakeHandler(handler)), _dir.Path, new HostAllowlist(["archive.org"]));
+
+    private static BenchmarkClip Clip(string url = "https://archive.org/download/x/y.mp3", byte[]? expected = null)
     {
         var bytes = expected ?? Content;
-        return new ReferenceFileDownloader(new HttpClient(new FakeHandler(handler)), _dir.Path, new HostAllowlist(["archive.org"]), new Uri(url),
-            Convert.ToHexStringLower(SHA256.HashData(bytes)), bytes.Length);
+        return new BenchmarkClip("t-1", "it", BenchmarkScenario.Clean, "Prova", "y.mp3", url, bytes.Length, Convert.ToHexStringLower(SHA256.HashData(bytes)), 60, "testo");
     }
 
     private static HttpResponseMessage Ok(byte[] bytes) => new(HttpStatusCode.OK) { Content = new ByteArrayContent(bytes) };
@@ -34,13 +36,13 @@ public sealed class ReferenceFileDownloaderTests : IDisposable
                 ? new HttpResponseMessage(HttpStatusCode.Found) { Headers = { Location = new Uri("https://dn1.ca.archive.org/0/items/x/y.mp3") } }
                 : Ok(Content);
         });
-        Assert.Null(downloader.CachedPath());
+        Assert.Null(downloader.CachedPath(Clip()));
 
-        var path = await downloader.EnsureAsync(CancellationToken.None);
+        var path = await downloader.EnsureAsync(Clip(), CancellationToken.None);
 
         Assert.Equal(["archive.org", "dn1.ca.archive.org"], hosts);
         Assert.Equal(Content, await File.ReadAllBytesAsync(path));
-        Assert.Equal(path, downloader.CachedPath());
+        Assert.Equal(path, downloader.CachedPath(Clip()));
         Assert.Empty(Directory.GetFiles(_dir.Path, "*.part"));
     }
 
@@ -49,9 +51,9 @@ public sealed class ReferenceFileDownloaderTests : IDisposable
     {
         var calls = 0;
         var downloader = Create(_ => { calls++; return Ok(Content); });
-        await downloader.EnsureAsync(CancellationToken.None);
+        await downloader.EnsureAsync(Clip(), CancellationToken.None);
 
-        await downloader.EnsureAsync(CancellationToken.None);
+        await downloader.EnsureAsync(Clip(), CancellationToken.None);
 
         Assert.Equal(1, calls);
     }
@@ -59,12 +61,12 @@ public sealed class ReferenceFileDownloaderTests : IDisposable
     [Fact]
     public async Task A_file_with_the_wrong_hash_is_discarded()
     {
-        var downloader = Create(_ => Ok(TestData.Bytes("altro-contenuto", 500)), expected: Content);
+        var downloader = Create(_ => Ok(TestData.Bytes("altro-contenuto", 500)));
 
-        var error = await Assert.ThrowsAsync<CodexVttException>(() => downloader.EnsureAsync(CancellationToken.None));
+        var error = await Assert.ThrowsAsync<CodexVttException>(() => downloader.EnsureAsync(Clip(), CancellationToken.None));
 
         Assert.Equal(ErrorCodes.ModelHashMismatch, error.Code);
-        Assert.Null(downloader.CachedPath());
+        Assert.Null(downloader.CachedPath(Clip()));
         Assert.Empty(Directory.GetFileSystemEntries(_dir.Path));
     }
 
@@ -73,7 +75,7 @@ public sealed class ReferenceFileDownloaderTests : IDisposable
     {
         var downloader = Create(_ => Ok([.. Content, .. Content]));
 
-        var error = await Assert.ThrowsAsync<CodexVttException>(() => downloader.EnsureAsync(CancellationToken.None));
+        var error = await Assert.ThrowsAsync<CodexVttException>(() => downloader.EnsureAsync(Clip(), CancellationToken.None));
 
         Assert.Equal(ErrorCodes.ModelHashMismatch, error.Code);
     }
@@ -83,7 +85,7 @@ public sealed class ReferenceFileDownloaderTests : IDisposable
     {
         var downloader = Create(_ => new HttpResponseMessage(HttpStatusCode.Found) { Headers = { Location = new Uri("https://evil.example/y.mp3") } });
 
-        var error = await Assert.ThrowsAsync<CodexVttException>(() => downloader.EnsureAsync(CancellationToken.None));
+        var error = await Assert.ThrowsAsync<CodexVttException>(() => downloader.EnsureAsync(Clip(), CancellationToken.None));
 
         Assert.Equal(ErrorCodes.DownloadHostNotAllowed, error.Code);
     }
@@ -93,7 +95,7 @@ public sealed class ReferenceFileDownloaderTests : IDisposable
     {
         var downloader = Create(_ => new HttpResponseMessage(HttpStatusCode.NotFound));
 
-        var error = await Assert.ThrowsAsync<CodexVttException>(() => downloader.EnsureAsync(CancellationToken.None));
+        var error = await Assert.ThrowsAsync<CodexVttException>(() => downloader.EnsureAsync(Clip(), CancellationToken.None));
 
         Assert.Equal(ErrorCodes.DownloadFailed, error.Code);
     }

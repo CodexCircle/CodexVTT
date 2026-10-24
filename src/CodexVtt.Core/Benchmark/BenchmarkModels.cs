@@ -5,6 +5,8 @@ namespace CodexVtt.Core.Benchmark;
 /// <c>Speed</c> i secondi di audio per secondo reale dopo il caricamento (4 = quattro volte il tempo reale).
 /// <c>Accuracy</c> è l'affidabilità in percentuale (100 meno il tasso di errore sulle parole contro il testo del file ufficiale);
 /// null con un file scelto dall'utente, di cui non c'è un testo di riferimento.
+/// Con i brani ufficiali ogni misura riguarda un brano: <c>ClipId</c>, la sua <c>Language</c> (it, en) e lo <c>Scenario</c>
+/// (clean, noisy); tutti null con un file scelto dall'utente.
 /// </summary>
 public sealed record BenchmarkEntry(
     string ModelId,
@@ -16,12 +18,15 @@ public sealed record BenchmarkEntry(
     double Speed,
     DateTimeOffset MeasuredAt,
     string AppVersion,
-    double? Accuracy = null);
+    double? Accuracy = null,
+    string? ClipId = null,
+    string? Language = null,
+    string? Scenario = null);
 
 /// <summary>Contenuto di benchmark.json: le misure valgono per l'impronta dell'hardware con cui sono state fatte.</summary>
 public sealed record BenchmarkFile(int Version, string Fingerprint, IReadOnlyList<BenchmarkEntry> Entries)
 {
-    public const int CurrentVersion = 1;
+    public const int CurrentVersion = 2;
 
     public static BenchmarkFile Empty { get; } = new(CurrentVersion, "", []);
 }

@@ -2,6 +2,8 @@ import type { Transport } from './client';
 import type {
   BenchmarkEntry,
   BenchmarkProgress,
+  BenchmarkReliability,
+  BenchmarkScenario,
   BenchmarkState,
   AppSettings,
   Collection,
@@ -105,8 +107,9 @@ export function createMockTransport(options: MockOptions = {}): Transport {
   }
 
   let settings: AppSettings = { language: 'auto', showMascot: true, exportIncludeHeader: false, uiLanguage: options.uiLanguage };
+  // Una misura per modello e brano (chiave `modello|brano`); `|` vuoto = file scelto dall'utente, senza testo di riferimento.
   const benchEntries = new Map<string, BenchmarkEntry>();
-  const benchEntry = (modelId: string, speed: number, accuracy?: number): BenchmarkEntry => ({
+  const benchEntry = (modelId: string, speed: number, clip?: { id: string; language: string; scenario: BenchmarkScenario; accuracy: number }): BenchmarkEntry => ({
     modelId,
     runtime: 'Cpu',
     threads: 8,
@@ -114,14 +117,37 @@ export function createMockTransport(options: MockOptions = {}): Transport {
     loadSeconds: 2,
     speed,
     measuredAt: '2026-10-24T10:00:00Z',
-    ...(accuracy === undefined ? {} : { accuracy }),
+    ...(clip === undefined ? {} : { accuracy: clip.accuracy, clipId: clip.id, language: clip.language, scenario: clip.scenario }),
     stale: 'none',
   });
-  for (const [id, speed] of Object.entries(options.benchmark ?? {})) benchEntries.set(id, benchEntry(id, speed));
+  for (const [id, speed] of Object.entries(options.benchmark ?? {})) benchEntries.set(`${id}|`, benchEntry(id, speed));
+  // Brani ufficiali simulati: due lingue, ognuna pulita e con rumore.
+  const mockClips: { id: string; language: string; scenario: BenchmarkScenario; title: string; seconds: number }[] = [
+    { id: 'it-clean-1', language: 'it', scenario: 'clean', title: 'Le avventure di Pinocchio, capitolo 6 (LibriVox)', seconds: 220 },
+    { id: 'it-noisy-1', language: 'it', scenario: 'noisy', title: 'Le avventure di Pinocchio, capitolo 6, con rumore', seconds: 220 },
+    { id: 'en-clean-1', language: 'en', scenario: 'clean', title: 'The Wonderful Wizard of Oz, chapter 21 (LibriVox)', seconds: 334 },
+    { id: 'en-noisy-1', language: 'en', scenario: 'noisy', title: 'The Wonderful Wizard of Oz, chapter 21, with noise', seconds: 334 },
+  ];
   let referenceCached = false;
   let benchRunning = false;
   let benchCancel = false;
-  const benchSnapshot = (): BenchmarkState => ({ running: benchRunning, entries: [...benchEntries.values()] });
+  const mean = (values: number[]) => (values.length === 0 ? undefined : Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10);
+  const reliability = (): BenchmarkReliability[] => {
+    const result: BenchmarkReliability[] = [];
+    for (const modelId of new Set([...benchEntries.values()].map((e) => e.modelId))) {
+      for (const language of ['it', 'en']) {
+        const of = (scenario: BenchmarkScenario) =>
+          mean([...benchEntries.values()].filter((e) => e.modelId === modelId && e.language === language && e.scenario === scenario && e.accuracy !== undefined).map((e) => e.accuracy!));
+        const clean = of('clean');
+        const noisy = of('noisy');
+        if (clean === undefined && noisy === undefined) continue;
+        const overall = mean([clean, noisy].filter((v): v is number => v !== undefined));
+        result.push({ modelId, language, ...(clean === undefined ? {} : { clean }), ...(noisy === undefined ? {} : { noisy }), ...(overall === undefined ? {} : { overall }) });
+      }
+    }
+    return result;
+  };
+  const benchSnapshot = (): BenchmarkState => ({ running: benchRunning, entries: [...benchEntries.values()], reliability: reliability() });
   let historyDirectory = 'C:\\Users\\utente\\Documents\\CodexVTT\\history';
   const history = new Map<string, TranscriptionResult>();
   const saveHistory = (result: TranscriptionResult) => {
@@ -309,7 +335,29 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         return system;
       case 'models.list':
         return models;
-      case 'models.recommend':
+      case 'models.recommend': {
+        // Con misure di affidabilità, il consiglio segue la lingua scelta: il modello con la media più alta.
+        const language = payload.language === 'it' || payload.language === 'en' ? payload.language : undefined;
+        const scores = new Map<string, number[]>();
+        for (const r of reliability()) {
+          if (r.overall === undefined || (language !== undefined && r.language !== language)) continue;
+          scores.set(r.modelId, [...(scores.get(r.modelId) ?? []), r.overall]);
+        }
+        const ranked = [...scores.entries()]
+          .map(([modelId, values]) => ({ modelId, score: mean(values)! }))
+          .sort((a, b) => b.score - a.score);
+        if (ranked.length > 0) {
+          const best = ranked[0];
+          const model = models.find((m) => m.id === best.modelId);
+          return {
+            recommendedId: best.modelId,
+            basis: 'benchmark',
+            reasons: [
+              { code: 'benchmark_recommended', args: { modelId: best.modelId, model: model?.displayName ?? best.modelId, speed: '10', accuracy: String(best.score), language: language ?? 'auto' } },
+            ],
+            hardware: system.hardware,
+          };
+        }
         return {
           recommendedId: 'large-v3-turbo-q5_0',
           reasons: [
@@ -321,6 +369,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
           ],
           hardware: system.hardware,
         };
+      }
       case 'models.download': {
         const m = models.find((x) => x.id === payload.modelId)!;
         m.state = 'downloading';
@@ -534,18 +583,24 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         return { deleted: true };
       case 'benchmark.get':
         return benchSnapshot();
-      case 'benchmark.reference':
+      case 'benchmark.reference': {
+        const files = [
+          { id: 'it-clean-1', language: 'it', title: 'Le avventure di Pinocchio, capitolo 6 (LibriVox)', url: 'https://archive.org/download/avventure_pinocchio_librivox/avventurepinocchio_06_collodi_64kb.mp3', sizeBytes: 1_764_750, sha256: '4d0f7bfe60934ce8c7490c3525ab118a55e31f2fe26bcb8d11e91ec1bc25f148', cached: referenceCached },
+          { id: 'en-clean-1', language: 'en', title: 'The Wonderful Wizard of Oz, chapter 21 (LibriVox)', url: 'https://archive.org/download/wizard_of_oz/wizardofoz_21_baum_64kb.mp3', sizeBytes: 2_673_121, sha256: '99e4729c9b77706aeb1b00488d7700c39b882900ea938a5fbb34ac7108919437', cached: referenceCached },
+        ];
         return {
           available: true,
-          url: 'https://archive.org/download/avventure_pinocchio_librivox/avventurepinocchio_06_collodi_64kb.mp3',
-          title: 'Le avventure di Pinocchio, capitolo 6 (LibriVox)',
-          sizeBytes: 1_764_750,
-          sha256: '4d0f7bfe60934ce8c7490c3525ab118a55e31f2fe26bcb8d11e91ec1bc25f148',
+          host: 'archive.org',
           license: 'Pubblico dominio',
+          files,
+          clips: mockClips,
+          totalBytes: files.reduce((sum, f) => sum + f.sizeBytes, 0),
+          missingBytes: files.filter((f) => !f.cached).reduce((sum, f) => sum + f.sizeBytes, 0),
           cached: referenceCached,
         };
+      }
       case 'benchmark.estimate': {
-        const found = benchEntries.get(String(payload.modelId));
+        const found = [...benchEntries.values()].find((e) => e.modelId === String(payload.modelId));
         if (!found || found.stale !== 'none') return { basis: 'none' };
         const total = (payload.durations as number[]).filter((d) => d > 0).reduce((a, b) => a + b, 0);
         return { basis: 'benchmark', seconds: total > 0 ? found.loadSeconds + total / found.speed : 0, measuredAt: found.measuredAt, runtime: found.runtime };
@@ -561,30 +616,40 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         benchRunning = true;
         benchCancel = false;
         const outcomes: BenchmarkProgress[] = [];
+        // Un passo per modello e brano; con un file proprio c'è un solo brano e nessuna affidabilità.
+        const jobs = payload?.useReference ? mockClips.map((c) => ({ clip: c })) : [{ clip: undefined }];
+        const total = ready.length * jobs.length;
         const step = (i: number) => {
           if (benchCancel) {
             benchRunning = false;
             event('benchmark.cancelled', { snapshot: benchSnapshot() });
             return;
           }
-          if (i >= ready.length) {
+          if (i >= total) {
             benchRunning = false;
             event('benchmark.completed', { outcomes, snapshot: benchSnapshot() });
             return;
           }
-          const m = ready[i];
-          event('benchmark.progress', { modelId: m.id, index: i, total: ready.length, phase: 'running' });
+          const m = ready[Math.floor(i / jobs.length)];
+          const { clip } = jobs[i % jobs.length];
+          event('benchmark.progress', { modelId: m.id, index: i, total, phase: 'running', ...(clip ? { clipId: clip.id } : {}) });
           later(() => {
             const speed = Math.round((64 / m.relativeCost) * 10) / 10;
-            // Solo con il file ufficiale c'è un testo di riferimento, quindi un'affidabilità misurata.
-            const accuracy = payload?.useReference ? Math.round((100 - m.relativeCost * 2) * 10) / 10 : undefined;
-            benchEntries.set(m.id, benchEntry(m.id, speed, accuracy));
-            const done: BenchmarkProgress = { modelId: m.id, index: i, total: ready.length, phase: 'done', speed, loadSeconds: 2, ...(accuracy === undefined ? {} : { accuracy }) };
+            // Il rumore costa qualche punto a tutti; i modelli più pesanti perdono meno.
+            const accuracy = clip ? Math.round((100 - m.relativeCost * 2 - (clip.scenario === 'noisy' ? 6 : 0) - (clip.language === 'en' ? 1 : 0)) * 10) / 10 : undefined;
+            if (clip && accuracy !== undefined) {
+              benchEntries.set(`${m.id}|${clip.id}`, benchEntry(m.id, speed, { id: clip.id, language: clip.language, scenario: clip.scenario, accuracy }));
+            } else {
+              benchEntries.set(`${m.id}|`, benchEntry(m.id, speed));
+            }
+            const done: BenchmarkProgress = { modelId: m.id, index: i, total, phase: 'done', speed, loadSeconds: 2, ...(accuracy === undefined ? {} : { accuracy }), ...(clip ? { clipId: clip.id } : {}) };
             outcomes.push(done);
             event('benchmark.progress', done);
             step(i + 1);
           });
         };
+        // Un nuovo test sostituisce le misure precedenti.
+        benchEntries.clear();
         later(() => step(0));
         return { started: true, fileName: 'riferimento.wav', duration: 90 };
       }

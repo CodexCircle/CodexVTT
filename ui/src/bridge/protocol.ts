@@ -113,6 +113,8 @@ export interface SelectionReason {
 
 export interface Recommendation {
   recommendedId?: string;
+  /** `benchmark` se il consiglio viene dalle misure del Test bench, `hardware` se viene dalle regole sul PC. */
+  basis?: 'benchmark' | 'hardware';
   reasons: SelectionReason[];
   hardware: HardwareProfile;
 }
@@ -251,12 +253,29 @@ export interface BenchmarkEntry {
   measuredAt: string;
   /** Affidabilità in percentuale (100 meno l'errore sulle parole) contro il testo del file ufficiale; assente con un file proprio. */
   accuracy?: number;
+  /** Brano ufficiale della misura, la sua lingua (it, en) e la condizione; assenti con un file proprio. */
+  clipId?: string;
+  language?: string;
+  scenario?: BenchmarkScenario;
   stale: BenchmarkStale;
+}
+
+/** Condizione di ascolto di un brano: lettura pulita o la stessa con rumore sintetico aggiunto. */
+export type BenchmarkScenario = 'clean' | 'noisy';
+
+/** Affidabilità di un modello in una lingua: media sui brani puliti, sul brano rumoroso e media delle due (i due scenari pesano uguale). */
+export interface BenchmarkReliability {
+  modelId: string;
+  language: string;
+  clean?: number;
+  noisy?: number;
+  overall?: number;
 }
 
 export interface BenchmarkState {
   running: boolean;
   entries: BenchmarkEntry[];
+  reliability: BenchmarkReliability[];
 }
 
 export interface BenchmarkProgress {
@@ -268,6 +287,7 @@ export interface BenchmarkProgress {
   loadSeconds?: number;
   accuracy?: number;
   errorCode?: string;
+  clipId?: string;
 }
 
 /** `none` = nessuna misura valida per il modello: la UI non inventa numeri. */
@@ -278,14 +298,37 @@ export interface BenchmarkEstimate {
   runtime?: string;
 }
 
-export interface BenchmarkReferenceInfo {
-  available: boolean;
-  url: string;
+/** Un file ufficiale da scaricare: indirizzo, dimensione e hash fissati nel codice. */
+export interface BenchmarkReferenceFile {
+  id: string;
+  language: string;
   title: string;
+  url: string;
   sizeBytes: number;
   sha256: string;
+  /** Già scaricato e verificato. */
+  cached: boolean;
+}
+
+/** Un brano del test: i rumorosi usano il file di un brano pulito con rumore sintetico aggiunto dall'app. */
+export interface BenchmarkReferenceClip {
+  id: string;
+  language: string;
+  scenario: BenchmarkScenario;
+  title: string;
+  seconds: number;
+}
+
+export interface BenchmarkReferenceInfo {
+  available: boolean;
+  host: string;
   license: string;
-  /** Già scaricato e verificato: il test parte senza rete. */
+  files: BenchmarkReferenceFile[];
+  clips: BenchmarkReferenceClip[];
+  totalBytes: number;
+  /** Quanto resta da scaricare. */
+  missingBytes: number;
+  /** Tutti i file già scaricati e verificati: il test parte senza rete. */
   cached: boolean;
 }
 
@@ -358,7 +401,8 @@ export type ExportFormat = 'txt' | 'srt' | 'vtt';
 export interface Commands {
   'system.info': { req: void; res: SystemInfo };
   'models.list': { req: void; res: ModelInfo[] };
-  'models.recommend': { req: void; res: Recommendation };
+  /** `language`: la lingua scelta in Home (it, en, auto); senza, quella delle impostazioni. */
+  'models.recommend': { req: { language?: string } | void; res: Recommendation };
   'models.download': { req: { modelId: string }; res: { started: boolean } };
   'models.cancelDownload': { req: { modelId: string }; res: { cancelled: boolean } };
   'models.verify': { req: { modelId: string }; res: ModelInfo };

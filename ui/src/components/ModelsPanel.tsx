@@ -98,7 +98,7 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
               </div>
               <ModelInfoTip
                 model={m}
-                measuredAccuracy={app.benchmark.entries.find((e) => e.modelId === m.id && e.stale === 'none' && e.accuracy !== undefined)?.accuracy}
+                measured={app.benchmark.reliability.filter((r) => r.modelId === m.id)}
               />
               {m.issues.length > 0 && <div className="model__issues">{t('warning', { issues: issues(m) })}</div>}
               {download && (

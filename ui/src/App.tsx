@@ -59,6 +59,12 @@ function Shell({ app }: { app: CodexVttState }) {
     if (app.settings?.language) setLanguage(app.settings.language);
   }, [app.settings?.language]);
 
+  // Il modello consigliato dal Test bench dipende dalla lingua scelta qui.
+  const { setRecommendLanguage } = app;
+  useEffect(() => {
+    setRecommendLanguage(language);
+  }, [language, setRecommendLanguage]);
+
   // Una trascrizione appena conclusa si apre da sola; quelle della coda restano a chi le sceglie nell'elenco.
   useEffect(() => {
     if (app.open?.jobId) setSelection({ kind: 'open' });

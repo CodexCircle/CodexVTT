@@ -1,7 +1,7 @@
 namespace CodexVtt.Core.Benchmark;
 
 /// <summary>
-/// File di riferimento ufficiale del Test bench: sempre lo stesso, con indirizzo, dimensione e SHA-256 fissati qui.
+/// Primo brano ufficiale del Test bench (italiano, lettura pulita), con indirizzo, dimensione e SHA-256 fissati qui. Gli altri brani sono in <see cref="BenchmarkClips"/>.
 /// È la lettura in italiano del capitolo 6 de «Le avventure di Pinocchio» di Carlo Collodi (voce di Simona), registrazione
 /// LibriVox dedicata al pubblico dominio (CC0/Public Domain Mark; testo di Collodi, morto nel 1890). Ospitata su archive.org,
 /// l'archivio che già distribuisce le registrazioni LibriVox. Non viene incluso nell'app né scaricato senza un'azione esplicita.
@@ -26,12 +26,12 @@ public static class BenchmarkReference
     public const string Host = "archive.org";
 }
 
-/// <summary>Fornisce il file di riferimento ufficiale. L'implementazione che usa la rete sta in CodexVtt.Models.Download (ADR-0006).</summary>
+/// <summary>Fornisce i file dei brani ufficiali. L'implementazione che usa la rete sta in CodexVtt.Models.Download (ADR-0006).</summary>
 public interface IReferenceFileProvider
 {
-    /// <summary>Percorso del file già scaricato e verificato, o null se non c'è.</summary>
-    string? CachedPath();
+    /// <summary>Percorso del file del brano già scaricato e verificato, o null se non c'è.</summary>
+    string? CachedPath(BenchmarkClip clip);
 
     /// <summary>Scarica il file (se manca) dall'indirizzo fissato, ne verifica dimensione e SHA-256 e restituisce il percorso. Solo su azione esplicita.</summary>
-    Task<string> EnsureAsync(CancellationToken ct);
+    Task<string> EnsureAsync(BenchmarkClip clip, CancellationToken ct);
 }
