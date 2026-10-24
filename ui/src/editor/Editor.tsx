@@ -14,6 +14,8 @@ interface Props {
   title: string;
   onRename?: (title: string) => void;
   onExport: (format: ExportFormat) => void;
+  /** Scrive i segmenti nella cronologia; assente se la trascrizione non è ancora in cronologia. Restituisce false se non è riuscito. */
+  onSave?: (segments: { start: number; end: number; text: string }[]) => Promise<boolean>;
   onDirtyChange: (dirty: boolean) => void;
   onCopied: () => void;
 }
@@ -22,7 +24,7 @@ interface Props {
  * Editor di una trascrizione: segmenti con parlanti e tempi cliccabili, timeline con lettore e pannello delle proprietà.
  * Il lettore sposta il cursore sulla timeline: la riproduzione dell'audio non passa ancora dal bridge (#24).
  */
-export function Editor({ result, title, onRename, onExport, onDirtyChange, onCopied }: Props) {
+export function Editor({ result, title, onRename, onExport, onSave, onDirtyChange, onCopied }: Props) {
   const { t } = useI18n();
   const editor = useEditorState(result);
   const { segments, speakers } = editor;
@@ -130,6 +132,33 @@ export function Editor({ result, title, onRename, onExport, onDirtyChange, onCop
     }
   };
 
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!onSave || saving || !editor.dirty) return;
+    const snapshot = editor.snapshot;
+    setSaving(true);
+    try {
+      const ok = await onSave(snapshot.segments.filter((g) => g.text.trim()).map((g) => ({ start: g.start, end: g.end, text: g.text })));
+      if (ok) editor.markSaved(snapshot);
+    } finally {
+      setSaving(false);
+    }
+  };
+  const saveRef = useRef(save);
+  saveRef.current = save;
+
+  // Ctrl+S (o Cmd+S) salva anche mentre si scrive in un segmento.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        void saveRef.current();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   const assign = (index: number, to: string) => editor.assignSpeaker(index, to === 'new' ? editor.addSpeaker() : to);
 
   return (
@@ -147,6 +176,10 @@ export function Editor({ result, title, onRename, onExport, onDirtyChange, onCop
             {t('resultTitle', { file: title })}
           </h3>
           <span className="sp" />
+          <button type="button" className="btn pri sm" disabled={!onSave || !editor.dirty || saving} title={onSave ? t('saveEdits') : t('saveNeedsHistory')} onClick={() => void save()}>
+            <Icon name="save" />
+            {t('saveEdits')}
+          </button>
           <button type="button" className="btn sm" onClick={() => void copy()}>
             <Icon name="copy" />
             {t('copy')}

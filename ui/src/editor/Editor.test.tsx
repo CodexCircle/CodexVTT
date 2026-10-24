@@ -39,13 +39,34 @@ describe('Editor a due pannelli', () => {
     expect(screen.getByRole('region', { name: /Trascrizione di errori\.mp3/ })).toBeInTheDocument();
   });
 
+  it('salva le modifiche nella cronologia con il pulsante Salva', async () => {
+    const user = await openFirstRecent();
+    const save = screen.getByRole('button', { name: 'Salva' });
+    expect(save).toBeDisabled();
+
+    const first = screen.getAllByRole('textbox', { name: /^Testo del segmento/ })[0];
+    await user.click(first);
+    await user.keyboard('{Control>}a{/Control}Ciao');
+    await user.tab();
+    expect(await screen.findByText('Modifiche non salvate')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Salva' }));
+    expect(await screen.findByText('Salvato nella cronologia')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Salva' })).toBeDisabled();
+    expect(screen.getAllByRole('textbox', { name: /^Testo del segmento/ })[0]).toHaveTextContent('Ciao');
+
+    // Annulla riporta il testo di prima e torna a chiedere il salvataggio.
+    await user.click(screen.getByRole('button', { name: 'Annulla modifica' }));
+    expect(await screen.findByText('Modifiche non salvate')).toBeInTheDocument();
+  });
+
   it('segnala le modifiche non salvate e le toglie con Annulla modifica', async () => {
     const user = await openFirstRecent();
     expect(screen.getByText('Salvato nella cronologia')).toBeInTheDocument();
 
     const first = screen.getAllByRole('textbox', { name: /^Testo del segmento/ })[0];
     await user.click(first);
-    await user.keyboard('{Control>}a{/Control}Ciao a tutti');
+    await user.keyboard('{Control>}a{/Control}Ciao');
     await user.tab();
     expect(await screen.findByText('Modifiche non salvate')).toBeInTheDocument();
 

@@ -112,6 +112,7 @@ public sealed partial class BridgeDispatcher : IDisposable
             ["history.testFolder"] = (p, _) => Task.FromResult<object?>(FolderProbe.Test(Read<FolderRef>(p).Directory)),
             ["history.setFolder"] = (p, _) => Task.FromResult<object?>(SetHistoryFolder(Read<FolderRef>(p).Directory)),
             ["history.update"] = (p, _) => Task.FromResult<object?>(UpdateHistory(p)),
+            ["history.saveEdits"] = (p, _) => Task.FromResult<object?>(SaveHistoryEdits(Read<HistoryEditsRequest>(p))),
             ["collections.save"] = (p, _) => Task.FromResult<object?>(SaveCollection(Read<CollectionSaveRequest>(p))),
             ["collections.delete"] = (p, _) => Task.FromResult<object?>(DeleteCollection(Read<HistoryRef>(p).Id)),
             ["collections.reorder"] = (p, _) => Task.FromResult<object?>(ReorderCollection(Read<CollectionReorderRequest>(p))),
@@ -537,6 +538,22 @@ public sealed partial class BridgeDispatcher : IDisposable
         return ToView(entry, library.Read());
     }
 
+    /// <summary>Salva nella cronologia il testo corretto nell'editor: tempi e testo di ogni segmento.</summary>
+    private HistoryEntryView SaveHistoryEdits(HistoryEditsRequest request)
+    {
+        var segments = request.Segments;
+        if (segments is null || segments.Count == 0 || segments.Any(s => s.Text is null || !double.IsFinite(s.Start) || !double.IsFinite(s.End) || s.Start < 0 || s.End < s.Start))
+            throw new CodexVttException(ErrorCodes.InvalidRequest, "Segmenti non validi.");
+
+        var history = History();
+        var entry = history.UpdateSegments(
+            request.Id,
+            segments.Select(s => new TranscriptSegment(TimeSpan.FromSeconds(s.Start), TimeSpan.FromSeconds(s.End), s.Text.Trim(), null)).ToList(),
+            UiLanguage());
+        Emit("history.changed", null);
+        return ToView(entry, new HistoryLibrary(history.Directory).Read());
+    }
+
     private HistoryGroup SaveCollection(CollectionSaveRequest request)
     {
         var saved = Library().SaveCollection(request.Id, request.Name, request.Color);
@@ -766,6 +783,10 @@ public sealed record ExportRequest(string? JobId, string? HistoryId, ExportForma
 public sealed record HistoryRef(string Id);
 
 public sealed record FolderRef(string Directory);
+
+public sealed record SegmentEdit(double Start, double End, string Text);
+
+public sealed record HistoryEditsRequest(string Id, IReadOnlyList<SegmentEdit>? Segments);
 
 public sealed record PickedAudio(string AudioId, AudioInfo Info);
 

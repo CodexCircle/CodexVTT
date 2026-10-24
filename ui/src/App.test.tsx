@@ -406,7 +406,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Avvia trascrizione' }));
 
     expect(await screen.findByRole('heading', { name: 'Trascrizione di riunione.mp3' })).toBeInTheDocument();
-    expect(screen.getByTestId('model-used')).toHaveTextContent('Modello usato: Base (ggml-base.bin, runtime Cpu)');
+    expect(screen.getByTitle('ggml-base.bin')).toHaveTextContent('Base');
     const segments = screen.getAllByRole('textbox', { name: /^Testo del segmento/ });
     expect(segments.map((s) => s.textContent).join(' ')).toBe(
       'Buongiorno a tutti e grazie per essere qui. Oggi parliamo del rilascio della prima versione di CodexVTT. Tutto il lavoro avviene in locale, sul vostro computer.',
@@ -497,7 +497,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Home' }));
     await user.click(screen.getByRole('button', { name: 'Add a file to get started' }));
     await user.click(await screen.findByRole('button', { name: 'Start transcription' }));
-    expect(await screen.findByTestId('model-used')).toHaveTextContent('Model used: Base (ggml-base.bin, runtime Cpu)');
+    expect(await screen.findByTitle('ggml-base.bin')).toHaveTextContent('Base');
   });
 
   it('uses the system language when none is chosen', async () => {

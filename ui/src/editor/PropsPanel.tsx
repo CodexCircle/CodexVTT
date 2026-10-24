@@ -86,18 +86,6 @@ export function PropsPanel({ result, title, onRename, onExport, editor }: Props)
             <Icon name="plus" />
           </button>
         </div>
-        <p className="note">{t('playNoAudio')}</p>
-        <p className="note" data-testid="model-used">
-          {t('modelUsed', {
-            model: result.model.displayName,
-            file: result.model.file,
-            runtime: result.model.runtime,
-            language: '',
-            duration: formatDuration(result.audioDuration),
-            elapsed: formatDuration(result.elapsed),
-          })}
-        </p>
-        <p className="note">{t('hallucinationHint')}</p>
       </Section>
 
       <div className="hr" />
