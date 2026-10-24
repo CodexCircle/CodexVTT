@@ -33,8 +33,8 @@ public sealed partial class BridgeDispatcher
         _benchmark.Progress += p => Emit("benchmark.progress", p);
     }
 
-    private (string Fingerprint, string AppVersion) BenchmarkContext() =>
-        (BenchmarkStore.Fingerprint(_hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu)), AppVersion());
+    private (string Fingerprint, string BenchmarkVersion) BenchmarkContext() =>
+        (BenchmarkStore.Fingerprint(_hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu)), BenchmarkVersion.Current);
 
     private string? InstalledIdentity(string modelId) =>
         _models.Catalog.Find(modelId) is { } model && _models.Status(model).State is not (ModelState.NotInstalled or ModelState.Downloading)

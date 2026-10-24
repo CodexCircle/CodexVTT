@@ -125,7 +125,7 @@ public sealed class BenchmarkStoreTests : IDisposable
 
         Assert.Equal(BenchmarkStaleReason.ModelChanged, _store.Views("pc-1", _ => "altro-hash", "2.0.0").Single().Stale);
         Assert.Equal(BenchmarkStaleReason.ModelChanged, _store.Views("pc-1", _ => null, "2.0.0").Single().Stale);
-        Assert.Equal(BenchmarkStaleReason.RuntimeChanged, _store.Views("pc-1", Identity, "2.1.0").Single().Stale);
+        Assert.Equal(BenchmarkStaleReason.TestChanged, _store.Views("pc-1", Identity, "2.1.0").Single().Stale);
         Assert.Null(_store.Lookup("pc-1", "base", Identity, "2.1.0"));
     }
 
