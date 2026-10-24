@@ -36,7 +36,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
     public async Task<IReadOnlyList<BenchmarkProgress>> RunAsync(
         IReadOnlyList<BenchmarkJob> jobs,
         string fingerprint,
-        string appVersion,
+        string benchmarkVersion,
         int? threads,
         CancellationToken ct)
     {
@@ -57,7 +57,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
             // Il primo modello paga da solo i costi una tantum del processo (runtime nativo, driver video, cache del disco):
             // senza una prova a vuoto il suo tempo fisso risultava più alto di quello dei modelli più grandi provati dopo.
             Publish(new BenchmarkProgress(ready[0].Id, 0, total, "running", ClipId: jobs[0].ClipId));
-            var warmUp = await MeasureAsync(ready[0], jobs[0], 0, total, fingerprint, appVersion, threads, record: false, ct).ConfigureAwait(false);
+            var warmUp = await MeasureAsync(ready[0], jobs[0], 0, total, fingerprint, benchmarkVersion, threads, record: false, ct).ConfigureAwait(false);
             if (warmUp.ErrorCode == ErrorCodes.TranscriptionBusy)
                 return outcomes;
 
@@ -70,7 +70,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
                     ct.ThrowIfCancellationRequested();
                     if (step > 0)
                         Publish(new BenchmarkProgress(model.Id, step, total, "running", ClipId: job.ClipId));
-                    var outcome = await MeasureAsync(model, job, step, total, fingerprint, appVersion, threads, record: true, ct).ConfigureAwait(false);
+                    var outcome = await MeasureAsync(model, job, step, total, fingerprint, benchmarkVersion, threads, record: true, ct).ConfigureAwait(false);
                     step++;
                     outcomes.Add(outcome);
                     Publish(outcome);
@@ -94,7 +94,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
         int index,
         int total,
         string fingerprint,
-        string appVersion,
+        string benchmarkVersion,
         int? threads,
         bool record,
         CancellationToken ct)
@@ -124,7 +124,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
             // Affidabilità: solo se c'è un testo con cui confrontare (brani ufficiali), come 100 meno il WER in percentuale.
             double? accuracy = job.ReferenceText is null ? null : Math.Round(Math.Clamp((1 - WordErrorRate.Compute(job.ReferenceText, result.Text)) * 100, 0, 100), 1);
             store.Record(fingerprint, new BenchmarkEntry(model.Id, BenchmarkStore.ModelIdentity(model), result.Model.Runtime, threads, job.AudioSeconds, load, speed,
-                DateTimeOffset.UtcNow, appVersion, accuracy, job.ClipId, job.ClipId is null ? null : job.Language, job.Scenario));
+                DateTimeOffset.UtcNow, benchmarkVersion, accuracy, job.ClipId, job.ClipId is null ? null : job.Language, job.Scenario));
             return new BenchmarkProgress(model.Id, index, total, "done", speed, load, Accuracy: accuracy, ClipId: job.ClipId);
         }
         catch (CodexVttException ex)

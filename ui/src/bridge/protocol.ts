@@ -238,7 +238,7 @@ export interface FolderTestResult {
 }
 
 /** Perché una misura del Test bench non vale più (`none` = vale). */
-export type BenchmarkStale = 'none' | 'hardwareChanged' | 'modelChanged' | 'runtimeChanged';
+export type BenchmarkStale = 'none' | 'hardwareChanged' | 'modelChanged' | 'testChanged';
 
 export interface BenchmarkEntry {
   modelId: string;

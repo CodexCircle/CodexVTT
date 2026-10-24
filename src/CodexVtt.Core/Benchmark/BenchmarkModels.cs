@@ -17,7 +17,7 @@ public sealed record BenchmarkEntry(
     double LoadSeconds,
     double Speed,
     DateTimeOffset MeasuredAt,
-    string AppVersion,
+    string BenchmarkVersion,
     double? Accuracy = null,
     string? ClipId = null,
     string? Language = null,
@@ -37,7 +37,7 @@ public enum BenchmarkStaleReason
     None,
     HardwareChanged,
     ModelChanged,
-    RuntimeChanged,
+    TestChanged,
 }
 
 /// <summary>Misura con il suo stato di validità, per mostrarla nella UI come «da rifare».</summary>

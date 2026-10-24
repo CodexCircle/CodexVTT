@@ -76,18 +76,18 @@ public sealed class BenchmarkStore
     }
 
     /// <summary>Tutte le misure con il loro stato rispetto all'hardware, ai modelli installati e alla versione dell'app.</summary>
-    public IReadOnlyList<BenchmarkView> Views(string fingerprint, Func<string, string?> identityOf, string appVersion)
+    public IReadOnlyList<BenchmarkView> Views(string fingerprint, Func<string, string?> identityOf, string benchmarkVersion)
     {
         var file = Read();
-        return file.Entries.Select(e => new BenchmarkView(e, Classify(file, fingerprint, identityOf, appVersion, e))).ToList();
+        return file.Entries.Select(e => new BenchmarkView(e, Classify(file, fingerprint, identityOf, benchmarkVersion, e))).ToList();
     }
 
     /// <summary>
     /// La misura valida per un modello, se c'è: con più brani o più runtime vale il runtime della misura più recente e i numeri
     /// sono combinati sui suoi brani (<see cref="Combine"/>).
     /// </summary>
-    public BenchmarkEntry? Lookup(string fingerprint, string modelId, Func<string, string?> identityOf, string appVersion) =>
-        Combine(Views(fingerprint, identityOf, appVersion).Where(v => v.IsValid && v.Entry.ModelId == modelId).Select(v => v.Entry).ToList());
+    public BenchmarkEntry? Lookup(string fingerprint, string modelId, Func<string, string?> identityOf, string benchmarkVersion) =>
+        Combine(Views(fingerprint, identityOf, benchmarkVersion).Where(v => v.IsValid && v.Entry.ModelId == modelId).Select(v => v.Entry).ToList());
 
     /// <summary>
     /// Riassume le misure di un modello in una sola: stesso runtime della più recente, velocità sul totale dell'audio e tempo
@@ -115,13 +115,13 @@ public sealed class BenchmarkStore
         };
     }
 
-    private static BenchmarkStaleReason Classify(BenchmarkFile file, string fingerprint, Func<string, string?> identityOf, string appVersion, BenchmarkEntry entry)
+    private static BenchmarkStaleReason Classify(BenchmarkFile file, string fingerprint, Func<string, string?> identityOf, string benchmarkVersion, BenchmarkEntry entry)
     {
         if (file.Fingerprint != fingerprint)
             return BenchmarkStaleReason.HardwareChanged;
         if (identityOf(entry.ModelId) != entry.ModelIdentity)
             return BenchmarkStaleReason.ModelChanged;
-        return entry.AppVersion == appVersion ? BenchmarkStaleReason.None : BenchmarkStaleReason.RuntimeChanged;
+        return entry.BenchmarkVersion == benchmarkVersion ? BenchmarkStaleReason.None : BenchmarkStaleReason.TestChanged;
     }
 
     private void Write(BenchmarkFile file)
