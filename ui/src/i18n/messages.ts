@@ -369,7 +369,7 @@ const it = {
   benchIntro: 'Trascrive lo stesso file di riferimento con ogni modello installato e salva quanto tempo ci mette su questo PC. Poi, quando aggiungi file alla coda, l’app stima in anticipo quanto durerà. Il file lo scegli tu e non viene inviato da nessuna parte.',
   benchWarn: 'Il test dura alcuni minuti e usa a fondo il processore (o la scheda video), nel rispetto del limite di CPU impostato. Chiudi gli altri programmi per una misura più fedele. Non parte durante una trascrizione e si può annullare.',
   benchFileHint: 'Scegli un file audio di parlato, da 10 secondi a 10 minuti.',
-  benchOfficialFile: 'File di riferimento fornito dall’app: non ancora disponibile (nessuna fonte con licenza libera scelta). Per ora usa un tuo file.',
+  benchOfficialFile: 'Puoi usare il file di riferimento ufficiale (sempre lo stesso, scaricato solo se lo chiedi) oppure un tuo file.',
   benchStart: 'Scegli un file e avvia il test',
   benchCancel: 'Annulla il test',
   benchRunning: 'Test in corso: {model} ({n} di {total})',
@@ -394,6 +394,14 @@ const it = {
   estimateQueue: 'Tempo stimato: circa {time} · Test bench del {date} ({runtime})',
   estimateNone: 'Per stimare il tempo, esegui il Test bench nella sezione Modelli.',
   etaInitial: 'Stima dal Test bench: circa {time}',
+  benchOfficialStart: 'Scarica il file ufficiale e avvia',
+  benchOfficialStartCached: 'Usa il file ufficiale e avvia',
+  benchOfficialTitle: 'Scaricare il file di riferimento?',
+  benchOfficialText: 'CodexVTT scarica una sola volta «{title}» ({size}), una lettura in italiano di circa 3 minuti e 40 secondi: è sempre lo stesso file. La richiesta non contiene nessun dato tuo.',
+  benchOfficialUrl: 'Indirizzo: {url}',
+  benchOfficialHash: 'SHA-256 atteso (il file è scartato se non coincide): {hash}',
+  benchOfficialLicense: 'Licenza: {license} (testo di Collodi, registrazione LibriVox).',
+  benchOfficialConfirm: 'Scarica e avvia',
 };
 
 export type MessageKey = keyof typeof it;
@@ -759,7 +767,7 @@ const en: Record<MessageKey, string> = {
   benchIntro: 'Transcribes the same reference file with every installed model and saves how long each takes on this PC. Then, when you add files to the queue, the app estimates in advance how long it will take. You choose the file and it is never sent anywhere.',
   benchWarn: 'The test takes a few minutes and uses the processor (or graphics card) heavily, within the CPU limit you set. Close other programs for a more faithful measurement. It does not start during a transcription and can be cancelled.',
   benchFileHint: 'Choose a speech audio file, from 10 seconds to 10 minutes.',
-  benchOfficialFile: 'Reference file provided by the app: not available yet (no freely licensed source chosen). For now use your own file.',
+  benchOfficialFile: 'You can use the official reference file (always the same one, downloaded only when you ask) or one of your own.',
   benchStart: 'Choose a file and start the test',
   benchCancel: 'Cancel the test',
   benchRunning: 'Test running: {model} ({n} of {total})',
@@ -784,6 +792,14 @@ const en: Record<MessageKey, string> = {
   estimateQueue: 'Estimated time: about {time} · Test bench of {date} ({runtime})',
   estimateNone: 'To estimate the time, run the Test bench in the Models section.',
   etaInitial: 'Estimate from the Test bench: about {time}',
+  benchOfficialStart: 'Download the official file and start',
+  benchOfficialStartCached: 'Use the official file and start',
+  benchOfficialTitle: 'Download the reference file?',
+  benchOfficialText: 'CodexVTT downloads “{title}” ({size}) once: a reading in Italian of about 3 minutes 40 seconds, always the same file. The request contains none of your data.',
+  benchOfficialUrl: 'Address: {url}',
+  benchOfficialHash: 'Expected SHA-256 (the file is discarded if it does not match): {hash}',
+  benchOfficialLicense: 'License: {license} (text by Collodi, LibriVox recording).',
+  benchOfficialConfirm: 'Download and start',
 };
 
 export type Locale = 'it' | 'en';

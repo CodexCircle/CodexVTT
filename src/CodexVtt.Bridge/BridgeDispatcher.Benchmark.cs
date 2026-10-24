@@ -61,7 +61,19 @@ public sealed partial class BridgeDispatcher
     private async Task<object?> BenchmarkStartAsync(JsonElement? payload, CancellationToken ct)
     {
         EnsureNothingRunning();
-        var path = await _shell.PickAudioFileAsync(ct).ConfigureAwait(false);
+        var request = payload is { ValueKind: JsonValueKind.Object } ? Read<BenchmarkStartRequest>(payload) : new BenchmarkStartRequest(false);
+        string? path;
+        if (request.UseReference == true)
+        {
+            // Il download parte solo da questa richiesta esplicita dell'utente (ADR-0006) e solo dall'indirizzo fissato nel codice.
+            var provider = _referenceFile ?? throw new CodexVttException(ErrorCodes.NotAvailableOnServer, "File di riferimento non disponibile.");
+            path = await provider.EnsureAsync(ct).ConfigureAwait(false);
+        }
+        else
+        {
+            path = await _shell.PickAudioFileAsync(ct).ConfigureAwait(false);
+        }
+
         if (path is null)
             return null;
         var handle = _audio.Register(path);
@@ -109,6 +121,18 @@ public sealed partial class BridgeDispatcher
         return new { Started = true, handle.Info.FileName, Duration = seconds };
     }
 
+    /// <summary>Indirizzo, dimensione, hash e licenza del file ufficiale, da mostrare prima di scaricarlo.</summary>
+    private object BenchmarkReferenceInfo() => new
+    {
+        Available = _referenceFile is not null,
+        BenchmarkReference.Url,
+        BenchmarkReference.Title,
+        BenchmarkReference.SizeBytes,
+        BenchmarkReference.Sha256,
+        BenchmarkReference.License,
+        Cached = _referenceFile?.CachedPath() is not null,
+    };
+
     private object BenchmarkCancel()
     {
         lock (_benchmarkLock)
@@ -139,5 +163,7 @@ public sealed partial class BridgeDispatcher
             throw new CodexVttException(ErrorCodes.TranscriptionBusy, "È già in corso una trascrizione.");
     }
 }
+
+public sealed record BenchmarkStartRequest(bool? UseReference);
 
 public sealed record BenchmarkEstimateRequest(string ModelId, IReadOnlyList<double>? Durations);

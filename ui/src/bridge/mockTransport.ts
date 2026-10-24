@@ -117,6 +117,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
     stale: 'none',
   });
   for (const [id, speed] of Object.entries(options.benchmark ?? {})) benchEntries.set(id, benchEntry(id, speed));
+  let referenceCached = false;
   let benchRunning = false;
   let benchCancel = false;
   const benchSnapshot = (): BenchmarkState => ({ running: benchRunning, entries: [...benchEntries.values()] });
@@ -532,6 +533,16 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         return { deleted: true };
       case 'benchmark.get':
         return benchSnapshot();
+      case 'benchmark.reference':
+        return {
+          available: true,
+          url: 'https://archive.org/download/avventure_pinocchio_librivox/avventurepinocchio_06_collodi_64kb.mp3',
+          title: 'Le avventure di Pinocchio, capitolo 6 (LibriVox)',
+          sizeBytes: 1_764_750,
+          sha256: '4d0f7bfe60934ce8c7490c3525ab118a55e31f2fe26bcb8d11e91ec1bc25f148',
+          license: 'Pubblico dominio',
+          cached: referenceCached,
+        };
       case 'benchmark.estimate': {
         const found = benchEntries.get(String(payload.modelId));
         if (!found || found.stale !== 'none') return { basis: 'none' };
@@ -543,6 +554,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         return { cancelling: true };
       case 'benchmark.start': {
         if (options.cancelDialogs) return null;
+        if (payload?.useReference) referenceCached = true;
         if (benchRunning) throw { code: 'transcription_busy', message: 'busy' };
         const ready = models.filter((m) => m.state === 'ready');
         benchRunning = true;

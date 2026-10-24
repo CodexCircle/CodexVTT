@@ -55,6 +55,10 @@ services.AddSingleton<IModelDownloader>(sp => new ModelDownloader(
     sp.GetRequiredService<HostAllowlist>(),
     sp.GetRequiredService<ILogger<ModelDownloader>>()));
 
+// File di riferimento del Test bench: stessa regola, scarica solo su richiesta esplicita (ADR-0006).
+services.AddSingleton<CodexVtt.Core.Benchmark.IReferenceFileProvider>(_ => new ReferenceFileDownloader(
+    ModelDownloader.CreateHttpClient(), Path.Combine(paths.Root, "benchmark")));
+
 // Decodifica: Media Foundation su Windows (ADR-0004); su Linux (Docker) ffmpeg/ffprobe del sistema (ADR-0007).
 // Il WAV si legge sempre con il decoder gestito, quindi il server parte anche senza ffmpeg (solo WAV).
 services.AddSingleton(sp =>

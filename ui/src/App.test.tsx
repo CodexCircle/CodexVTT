@@ -241,7 +241,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Modelli' }));
     const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
     expect(within(bench).getByText('Nessuna misura ancora.')).toBeInTheDocument();
-    expect(within(bench).getByText(/non ancora disponibile/)).toBeInTheDocument();
+    expect(within(bench).getByText(/file di riferimento ufficiale/)).toBeInTheDocument();
 
     await user.click(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' }));
 
@@ -249,6 +249,28 @@ describe('App', () => {
     const table = within(bench).getByRole('table', { name: 'Risultati del test' });
     expect(within(within(table).getByRole('row', { name: /Base/ })).getByText(/32×? il tempo reale|32 il tempo reale|32×/)).toBeInTheDocument();
     expect(within(within(table).getByRole('row', { name: /Small/ })).getByText(/10,7/)).toBeInTheDocument();
+  });
+
+  it('shows address, hash and license before downloading the official reference file, and downloads only after confirming', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+
+    await user.click(within(bench).getByRole('button', { name: 'Scarica il file ufficiale e avvia' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Scaricare il file di riferimento?' });
+    expect(within(dialog).getByText(/https:\/\/archive\.org\/download\//)).toBeInTheDocument();
+    expect(within(dialog).getByText(/4d0f7bfe60934ce8/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Pubblico dominio/)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Annulla' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(bench).getByText('Nessuna misura ancora.')).toBeInTheDocument();
+
+    await user.click(within(bench).getByRole('button', { name: 'Scarica il file ufficiale e avvia' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Scarica e avvia' }));
+
+    expect(await screen.findByText('Test bench completato.')).toBeInTheDocument();
+    expect(await within(bench).findByRole('button', { name: 'Usa il file ufficiale e avvia' })).toBeInTheDocument();
   });
 
   it('can cancel the Test bench and keeps what was already measured', async () => {

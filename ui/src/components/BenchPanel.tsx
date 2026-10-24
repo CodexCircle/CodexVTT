@@ -1,15 +1,28 @@
+import { useState } from 'react';
+import type { BenchmarkReferenceInfo } from '../bridge/protocol';
 import { useI18n, type MessageKey } from '../i18n/i18n';
 import type { CodexVttState } from '../state/useCodexVtt';
+import { ConfirmDialog } from './ConfirmDialog';
 
 /**
  * Test bench: trascrive un file di riferimento scelto dall'utente con ogni modello installato e mostra la velocità misurata
  * su questo PC. Parte solo da un clic, non usa la rete e si può annullare.
  */
 export function BenchPanel({ app }: { app: CodexVttState }) {
-  const { t, formatShortDate } = useI18n();
+  const { t, formatShortDate, formatBytes } = useI18n();
+  const [reference, setReference] = useState<BenchmarkReferenceInfo>();
+  const [asking, setAsking] = useState(false);
   const { benchmark, benchmarkProgress: progress } = app;
   const busy = benchmark.running || Boolean(app.jobId) || app.queueRunning;
   const names = new Map(app.models.map((m) => [m.id, m.displayName]));
+  // Mostrare l'indirizzo non scarica nulla: il download parte solo da «Scarica e avvia».
+  const startOfficial = async () => {
+    const info = reference ?? (await app.benchmarkReference());
+    if (!info?.available) return;
+    setReference(info);
+    if (info.cached) void app.startBenchmark(true);
+    else setAsking(true);
+  };
   const number = (value: number) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
 
   return (
@@ -26,9 +39,14 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
               {t('benchCancel')}
             </button>
           ) : (
-            <button type="button" disabled={busy || app.readyModels.length === 0} aria-describedby="bench-hint" onClick={() => void app.startBenchmark()}>
-              {t('benchStart')}
-            </button>
+            <>
+              <button type="button" disabled={busy || app.readyModels.length === 0} aria-describedby="bench-hint" onClick={() => void startOfficial()}>
+                {reference?.cached ? t('benchOfficialStartCached') : t('benchOfficialStart')}
+              </button>
+              <button type="button" className="secondary" disabled={busy || app.readyModels.length === 0} aria-describedby="bench-hint" onClick={() => void app.startBenchmark()}>
+                {t('benchStart')}
+              </button>
+            </>
           )}
         </div>
       )}
@@ -74,6 +92,26 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
             ))}
           </tbody>
         </table>
+      )}
+      {asking && reference && (
+        <ConfirmDialog
+          title={t('benchOfficialTitle')}
+          confirmLabel={t('benchOfficialConfirm')}
+          onConfirm={() => {
+            setAsking(false);
+            void app.startBenchmark(true).then(() => app.benchmarkReference().then(setReference));
+          }}
+          onCancel={() => setAsking(false)}
+        >
+          <p>{t('benchOfficialText', { title: reference.title, size: formatBytes(reference.sizeBytes) })}</p>
+          <p>
+            <code>{t('benchOfficialUrl', { url: reference.url })}</code>
+          </p>
+          <p>
+            <code>{t('benchOfficialHash', { hash: reference.sha256 })}</code>
+          </p>
+          <p>{t('benchOfficialLicense', { license: reference.license })}</p>
+        </ConfirmDialog>
       )}
     </section>
   );

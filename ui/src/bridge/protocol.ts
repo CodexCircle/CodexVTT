@@ -268,6 +268,17 @@ export interface BenchmarkEstimate {
   runtime?: string;
 }
 
+export interface BenchmarkReferenceInfo {
+  available: boolean;
+  url: string;
+  title: string;
+  sizeBytes: number;
+  sha256: string;
+  license: string;
+  /** Già scaricato e verificato: il test parte senza rete. */
+  cached: boolean;
+}
+
 export const palettes = ['sabbia', 'natale', 'halloween', 'ciliegia'] as const;
 export type Palette = (typeof palettes)[number];
 
@@ -390,7 +401,9 @@ export interface Commands {
   'diagnostics.openLogs': { req: void; res: { opened: boolean } };
   /** Apre la selezione della cartella: non la salva, va prima testata. */
   /** Sceglie il file di riferimento (dialog nativo) e avvia il test su tutti i modelli pronti; null se si annulla. */
-  'benchmark.start': { req: void; res: { started: boolean; fileName: string; duration: number } | null };
+  'benchmark.start': { req: { useReference?: boolean } | void; res: { started: boolean; fileName: string; duration: number } | null };
+  /** File di riferimento ufficiale: indirizzo, dimensione, hash e licenza da mostrare prima di scaricarlo. Non scarica nulla. */
+  'benchmark.reference': { req: void; res: BenchmarkReferenceInfo };
   'benchmark.cancel': { req: void; res: { cancelling: boolean } };
   'benchmark.get': { req: void; res: BenchmarkState };
   /** Stima per file di queste durate (secondi) con il modello indicato, dall'ultima misura valida. */

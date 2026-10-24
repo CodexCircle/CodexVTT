@@ -20,16 +20,18 @@ public sealed class BridgeDispatcherTests : IDisposable
     private readonly ModelStore _store;
     private readonly TranscriptionService _transcription;
     private readonly BridgeDispatcher _dispatcher;
+    private readonly FakeReference _reference;
     private int _nextId;
 
     public BridgeDispatcherTests()
     {
         var paths = _dir.AppPaths();
+        _reference = new FakeReference(_dir);
         _store = new ModelStore(paths, TestData.Catalog(models: [("base", ModelContent, 2, 2, 0), ("small", TestData.Bytes("s"), 6, 3, 1)]));
         var audio = new AudioLibrary([new WavDecoder()], TimeSpan.FromHours(3));
         _transcription = new TranscriptionService(_store, audio, new EchoEngine(), NullLogger<TranscriptionService>.Instance);
         _dispatcher = new BridgeDispatcher(paths, new SettingsStore(paths.SettingsFile), _store, new NoDownloads(),
-            new FakeHardware(TestData.Hardware()), audio, _transcription, _shell, new HistoryLocation(HistoryDir), NullLogger<BridgeDispatcher>.Instance);
+            new FakeHardware(TestData.Hardware()), audio, _transcription, _shell, new HistoryLocation(HistoryDir), NullLogger<BridgeDispatcher>.Instance, referenceFile: _reference);
     }
 
     private string HistoryDir => Path.Combine(_dir.Path, "Documenti", "CodexVTT", "history");
@@ -284,6 +286,25 @@ public sealed class BridgeDispatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task Benchmark_official_file_is_downloaded_only_on_an_explicit_request_and_then_reused()
+    {
+        _shell.NextOpen = _dir.File("base.bin", ModelContent);
+        Ok(await Call("models.import"));
+        var info = Ok(await Call("benchmark.reference"));
+        Assert.Equal(0, _reference.Downloads); // mostrare l'indirizzo non scarica nulla
+        Assert.StartsWith("https://archive.org/download/", info.GetProperty("url").GetString());
+        Assert.Equal(64, info.GetProperty("sha256").GetString()!.Length);
+        Assert.False(info.GetProperty("cached").GetBoolean());
+
+        Ok(await Call("benchmark.start", new { useReference = true }));
+        await _shell.WaitForEventAsync("benchmark.completed");
+
+        Assert.Equal(1, _reference.Downloads);
+        Assert.True(Ok(await Call("benchmark.reference")).GetProperty("cached").GetBoolean());
+        Assert.Single(Ok(await Call("benchmark.get")).GetProperty("entries").EnumerateArray());
+    }
+
+    [Fact]
     public async Task Benchmark_refuses_files_of_unsuitable_length_and_cannot_start_over_a_transcription()
     {
         _shell.NextOpen = _dir.File("corto.wav", TestData.Wav(16000, 1, 2));
@@ -518,6 +539,21 @@ public sealed class BridgeDispatcherTests : IDisposable
     public async Task Settings_reject_unknown_model()
     {
         Assert.Equal(ErrorCodes.ModelUnknown, ErrorCode(await Call("settings.set", new { selectedModelId = "nope" })));
+    }
+
+    private sealed class FakeReference(TempDir dir) : CodexVtt.Core.Benchmark.IReferenceFileProvider
+    {
+        private string? _path;
+
+        public int Downloads { get; private set; }
+
+        public string? CachedPath() => _path;
+
+        public Task<string> EnsureAsync(CancellationToken ct)
+        {
+            Downloads++;
+            return Task.FromResult(_path ??= dir.File("ufficiale.wav", TestData.Wav(16000, 1, 12)));
+        }
     }
 
     private sealed class FakeShell : IShellServices

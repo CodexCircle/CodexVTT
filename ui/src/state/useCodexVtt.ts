@@ -310,9 +310,11 @@ export function useCodexVtt(client: BridgeClient) {
     /** Stima del tempo dei file in attesa, o `basis: none` se manca una misura valida per il modello scelto. */
     estimate,
     pendingDurations,
-    startBenchmark: () =>
+    benchmarkReference: () => guard(() => client.call('benchmark.reference')),
+    /** Con `useReference` scarica (se manca) il file ufficiale; altrimenti si sceglie un file proprio. */
+    startBenchmark: (useReference = false) =>
       guard(async () => {
-        const started = await client.call('benchmark.start');
+        const started = await client.call('benchmark.start', useReference ? { useReference: true } : undefined);
         if (started) setBenchmark((b) => ({ ...b, running: true }));
       }),
     cancelBenchmark: () => guard(() => client.call('benchmark.cancel')),

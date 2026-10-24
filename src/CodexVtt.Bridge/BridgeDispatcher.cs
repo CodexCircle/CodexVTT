@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using CodexVtt.Core;
 using CodexVtt.Core.Audio;
+using CodexVtt.Core.Benchmark;
 using CodexVtt.Core.Errors;
 using CodexVtt.Core.Export;
 using CodexVtt.Core.Hardware;
@@ -31,6 +32,7 @@ public sealed partial class BridgeDispatcher : IDisposable
     private readonly IShellServices _shell;
     private readonly HistoryLocation _historyLocation;
     private readonly IUpdateService? _updates;
+    private readonly IReferenceFileProvider? _referenceFile;
     private readonly ILogger<BridgeDispatcher> _logger;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _downloads = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Func<JsonElement?, CancellationToken, Task<object?>>> _handlers;
@@ -46,7 +48,8 @@ public sealed partial class BridgeDispatcher : IDisposable
         IShellServices shell,
         HistoryLocation historyLocation,
         ILogger<BridgeDispatcher> logger,
-        IUpdateService? updates = null)
+        IUpdateService? updates = null,
+        CodexVtt.Core.Benchmark.IReferenceFileProvider? referenceFile = null)
     {
         _paths = paths;
         _settings = settings;
@@ -59,6 +62,7 @@ public sealed partial class BridgeDispatcher : IDisposable
         _historyLocation = historyLocation;
         _logger = logger;
         _updates = updates;
+        _referenceFile = referenceFile;
 
         InitBenchmark();
         _transcription.Progress += OnTranscriptionProgress;
@@ -93,6 +97,7 @@ public sealed partial class BridgeDispatcher : IDisposable
             ["queue.stop"] = (_, _) => Task.FromResult<object?>(QueueStop()),
             ["benchmark.get"] = (_, _) => Task.FromResult<object?>(BenchmarkSnapshot()),
             ["benchmark.start"] = BenchmarkStartAsync,
+            ["benchmark.reference"] = (_, _) => Task.FromResult<object?>(BenchmarkReferenceInfo()),
             ["benchmark.cancel"] = (_, _) => Task.FromResult<object?>(BenchmarkCancel()),
             ["benchmark.estimate"] = (p, _) => Task.FromResult<object?>(BenchmarkEstimate(Read<BenchmarkEstimateRequest>(p))),
             ["export.save"] = ExportAsync,
