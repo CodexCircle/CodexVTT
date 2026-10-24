@@ -176,6 +176,8 @@ export function useCodexVtt(client: BridgeClient) {
       client.on('benchmark.progress', (p) => setBenchmarkProgress(p)),
       client.on('benchmark.completed', ({ snapshot }) => {
         setBenchmark(snapshot);
+        // Il modello consigliato segue le misure appena fatte.
+        void refreshModels().catch(report);
         setBenchmarkProgress(undefined);
         setNotice({ key: 'benchDone' });
       }),

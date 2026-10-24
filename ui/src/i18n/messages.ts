@@ -208,6 +208,8 @@ const it = {
   reason_compat_runtime: 'La CPU non supporta AVX2/FMA/F16C: si usa il runtime compatibile, più lento.',
   reason_recommended: 'Consigliato: {model}, il più accurato tra quelli compatibili.',
   reason_none_compatible: 'Nessun modello del catalogo è compatibile con questo PC.',
+  reason_benchmark_accuracy: 'Consigliato dal Test bench: {model}, il più affidabile ({accuracy}%) tra i modelli provati che reggono il tempo reale ({speed}× il tempo reale).',
+  reason_benchmark_speed: 'Consigliato dal Test bench: {model}, il migliore tra i modelli provati ({speed}× il tempo reale). Per confrontare anche l’affidabilità rifai il test con il file ufficiale.',
 
   issue_insufficientMemory: 'RAM insufficiente',
   issue_insufficientDisk: 'spazio su disco insufficiente',
@@ -611,6 +613,8 @@ const en: Record<MessageKey, string> = {
   reason_compat_runtime: 'The CPU does not support AVX2/FMA/F16C: using the slower compatibility runtime.',
   reason_recommended: 'Recommended: {model}, the most accurate among the compatible ones.',
   reason_none_compatible: 'No model in the catalog is compatible with this PC.',
+  reason_benchmark_accuracy: 'Recommended by the Test bench: {model}, the most reliable ({accuracy}%) among the tested models that keep up with real time ({speed}× real time).',
+  reason_benchmark_speed: 'Recommended by the Test bench: {model}, the best of the tested models ({speed}× real time). To compare reliability too, run the test again with the official file.',
 
   issue_insufficientMemory: 'not enough RAM',
   issue_insufficientDisk: 'not enough disk space',

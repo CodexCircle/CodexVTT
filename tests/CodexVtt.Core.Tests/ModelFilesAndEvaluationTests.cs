@@ -118,6 +118,9 @@ public class GpuTests
         Assert.Equal("Cpu", global::CodexVtt.Transcription.Whisper.WhisperEngine.RuntimeLabel("Vulkan", true, ["whisper_backend_init_gpu: device 0: CPU (type: 0)", "whisper_backend_init_gpu: no GPU found"]));
         Assert.Equal("Vulkan (GPU)", global::CodexVtt.Transcription.Whisper.WhisperEngine.RuntimeLabel("Vulkan", true, ["whisper_backend_init_gpu: using Vulkan0 backend"]));
         Assert.Equal("Cpu", global::CodexVtt.Transcription.Whisper.WhisperEngine.RuntimeLabel("Vulkan", false, ["whisper_backend_init_gpu: using Vulkan0 backend"]));
+        // Scheda richiesta e nessun messaggio contrario: è la scheda, anche se il log non ha la riga attesa (era l'errore «Cpu» su tutti i modelli).
+        Assert.Equal("Vulkan (GPU)", global::CodexVtt.Transcription.Whisper.WhisperEngine.RuntimeLabel("Vulkan", true, []));
+        Assert.Equal("Vulkan (GPU)", global::CodexVtt.Transcription.Whisper.WhisperEngine.RuntimeLabel("Vulkan", true, ["ggml_vulkan: Found 1 Vulkan devices:", "ggml_vulkan: 0 = NVIDIA GeForce RTX 3060"]));
     }
 
     [Fact]

@@ -31,8 +31,8 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
         string appVersion,
         string language,
         int? threads,
-        CancellationToken ct,
-        string? referenceText = null)
+        string? referenceText,
+        CancellationToken ct)
     {
         if (transcription.Current is not null || Interlocked.CompareExchange(ref _running, 1, 0) != 0)
             throw new CodexVttException(ErrorCodes.TranscriptionBusy, "È già in corso una trascrizione.");
@@ -46,7 +46,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
             if (ready.Count > 0)
             {
                 Publish(new BenchmarkProgress(ready[0].Id, 0, ready.Count, "running"));
-                var warmUp = await MeasureAsync(ready[0], 0, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, ct, referenceText, record: false).ConfigureAwait(false);
+                var warmUp = await MeasureAsync(ready[0], 0, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, referenceText, record: false, ct).ConfigureAwait(false);
                 if (warmUp.ErrorCode == ErrorCodes.TranscriptionBusy)
                     return outcomes;
             }
@@ -57,7 +57,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
                 var model = ready[i];
                 if (i > 0)
                     Publish(new BenchmarkProgress(model.Id, i, ready.Count, "running"));
-                var outcome = await MeasureAsync(model, i, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, ct, referenceText).ConfigureAwait(false);
+                var outcome = await MeasureAsync(model, i, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, referenceText, record: true, ct).ConfigureAwait(false);
                 outcomes.Add(outcome);
                 Publish(outcome);
                 // Se nel frattempo è partita un'altra trascrizione il test si ferma: non deve rubarle il posto.
@@ -83,9 +83,9 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
         string appVersion,
         string language,
         int? threads,
-        CancellationToken ct,
         string? referenceText,
-        bool record = true)
+        bool record,
+        CancellationToken ct)
     {
         var clock = Stopwatch.StartNew();
         double? firstWork = null;

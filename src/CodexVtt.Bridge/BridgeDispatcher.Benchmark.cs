@@ -99,8 +99,8 @@ public sealed partial class BridgeDispatcher
         {
             try
             {
-                var outcomes = await _benchmark.RunAsync(handle.AudioId, seconds, fingerprint, version, settings.Language, threads, cts.Token,
-                    request.UseReference == true ? BenchmarkReferenceText.Text : null).ConfigureAwait(false);
+                var outcomes = await _benchmark.RunAsync(handle.AudioId, seconds, fingerprint, version, settings.Language, threads,
+                    request.UseReference == true ? BenchmarkReferenceText.Text : null, cts.Token).ConfigureAwait(false);
                 Emit("benchmark.completed", new { Outcomes = outcomes, Snapshot = BenchmarkSnapshot() });
             }
             catch (OperationCanceledException)

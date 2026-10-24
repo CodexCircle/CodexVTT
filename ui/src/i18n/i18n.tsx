@@ -81,6 +81,10 @@ export function createI18n(locale: Locale) {
         return t('reason_compat_runtime');
       case 'recommended':
         return t('reason_recommended', { model: a.model });
+      case 'benchmark_recommended':
+        return a.accuracy !== undefined
+          ? t('reason_benchmark_accuracy', { model: a.model, accuracy: a.accuracy, speed: a.speed })
+          : t('reason_benchmark_speed', { model: a.model, speed: a.speed });
       case 'none_compatible':
         return t('reason_none_compatible');
       default:

@@ -27,6 +27,8 @@ public sealed record SelectionReason(string Code, IReadOnlyDictionary<string, st
     public const string GpuBudget = "gpu_budget";
     public const string CompatibilityRuntime = "compat_runtime";
     public const string Recommended = "recommended";
+    /// <summary>Consiglio basato sulle misure del Test bench (args: modelId, model, speed, accuracy se misurata).</summary>
+    public const string BenchmarkRecommended = "benchmark_recommended";
     public const string NoneCompatible = "none_compatible";
 }
 
