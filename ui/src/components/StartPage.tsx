@@ -1,5 +1,6 @@
 import { transcriptionLanguages, useI18n, type MessageKey } from '../i18n/i18n';
 import type { CodexVttState } from '../state/useCodexVtt';
+import { FolderControl } from './FolderControl';
 import { Icon } from './Icon';
 import { RunStatus } from './RunStatus';
 
@@ -27,6 +28,18 @@ export function StartPage({ app, language, onLanguage, needsLanguage, running, o
   return (
     <div className="page">
       <h2 className="section-title">{t('newTranscription')}</h2>
+
+      {/* Prima apertura: nessuna cartella scelta e nessuna trascrizione salvata. */}
+      {app.desktop && app.settings && !app.settings.historyDirectory && (app.history?.entries.length ?? 0) === 0 && (
+        <section className="card" aria-labelledby="folder-onboarding">
+          <h3 id="folder-onboarding">{t('folderOnboardingTitle')}</h3>
+          <p className="muted">{t('folderOnboardingText')}</p>
+          <p className="folder">
+            {t('historyFolder')}: <code>{app.history?.directory}</code>
+          </p>
+          <FolderControl app={app} />
+        </section>
+      )}
 
       <button
         type="button"

@@ -219,7 +219,11 @@ public sealed class BridgeDispatcherTests : IDisposable
         var custom = Path.Combine(_dir.Path, "Le mie trascrizioni");
         _shell.NextFolder = custom;
 
-        var saved = Ok(await Call("history.pickFolder"));
+        var picked = Ok(await Call("history.pickFolder"));
+        Assert.Equal(custom, picked.GetProperty("directory").GetString());
+        Assert.NotEqual(custom, Ok(await Call("history.list")).GetProperty("directory").GetString()); // scelta ma non ancora adottata
+        Assert.True(Ok(await Call("history.testFolder", new { directory = custom })).GetProperty("ok").GetBoolean());
+        var saved = Ok(await Call("history.setFolder", new { directory = custom }));
 
         Assert.Equal(custom, saved.GetProperty("historyDirectory").GetString());
         Assert.Equal(custom, Ok(await Call("history.list")).GetProperty("directory").GetString());
@@ -234,6 +238,21 @@ public sealed class BridgeDispatcherTests : IDisposable
         Assert.Equal("natale", Ok(await Call("settings.get")).GetProperty("palette").GetString());
         Assert.Equal(ErrorCodes.InvalidRequest, ErrorCode(await Call("settings.set", new { mascot = "drago" })));
         Assert.Equal("giulio", Ok(await Call("settings.set", new { mascot = "giulio" })).GetProperty("mascot").GetString());
+    }
+
+    [Fact]
+    public async Task History_folder_that_fails_the_test_is_not_saved()
+    {
+        var before = Ok(await Call("history.list")).GetProperty("directory").GetString();
+        var blocker = Path.Combine(_dir.Path, "file.txt");
+        File.WriteAllText(blocker, "x");
+        var inside = Path.Combine(blocker, "sotto"); // una cartella dentro un file: impossibile da creare
+
+        var test = Ok(await Call("history.testFolder", new { directory = inside }));
+        Assert.False(test.GetProperty("ok").GetBoolean());
+        Assert.Equal(ErrorCodes.FolderTestFailed, ErrorCode(await Call("history.setFolder", new { directory = inside })));
+        Assert.Equal(ErrorCodes.FolderTestFailed, ErrorCode(await Call("history.setFolder", new { directory = "relativa" })));
+        Assert.Equal(before, Ok(await Call("history.list")).GetProperty("directory").GetString());
     }
 
     [Fact]

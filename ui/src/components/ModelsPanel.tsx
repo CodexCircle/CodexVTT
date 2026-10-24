@@ -4,6 +4,7 @@ import { useI18n, type MessageKey } from '../i18n/i18n';
 import { modelLimits } from '../state/modelLimits';
 import type { CodexVttState } from '../state/useCodexVtt';
 import { ConfirmDialog } from './ConfirmDialog';
+import { ModelInfoTip } from './ModelInfoTip';
 
 export function ModelsPanel({ app }: { app: CodexVttState }) {
   const { t, formatBytes, formatMemory, reason, issueText } = useI18n();
@@ -87,33 +88,22 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
                 {selected && <span className="badge">{t('inUse')}</span>}
                 <span className={`state state--${m.state}`}>{t(`state_${m.state}` as MessageKey)}</span>
               </div>
+              <ModelInfoTip app={app} model={m} />
               <div className="model__meta">
-                {t('modelMeta', {
-                  size: formatBytes(m.sizeBytes),
-                  ram: formatBytes(m.ramRequiredBytes),
-                  quantization: m.quantization,
-                  license: m.license,
-                })}
-              </div>
-              <div className="model__meta muted">
-                {t('engineLine', { engine: engineName(m.engine) })}
-                {' · '}
-                {m.accuracy ? (
-                  <span
-                    className="model__accuracy"
-                    title={t('accuracyTip', {
-                      metric: m.accuracy.metric,
-                      source: m.accuracy.source,
-                      measured: t(m.accuracy.measuredByProject ? 'accuracyMeasured' : 'accuracyPublished'),
-                    })}
-                  >
-                    {t('accuracyBadge', { percent: formatPercent(m.accuracy.percent) })}
-                  </span>
-                ) : (
-                  t('accuracyUnknown')
-                )}
+                {t('modelMetaShort', { size: formatBytes(m.sizeBytes), quantization: m.quantization, license: m.license })}
                 {m.requiresLanguage && ` · ${t('requiresLanguageNote')}`}
               </div>
+              <ul className="model__engines" aria-label={t('enginesTitle')}>
+                <li>
+                  {t('engineTranscription', {
+                    engine: t(app.system?.hardware.gpuAcceleration && m.engine === 'whisper' ? 'engineRuntimeGpu' : 'engineRuntimeCpu', {
+                      engine: engineName(m.engine),
+                    }),
+                  })}
+                </li>
+                <li>{t('engineSpellcheck')}</li>
+                <li>{t('enginePunctuation')}</li>
+              </ul>
               {m.attribution && <div className="model__attribution muted">{m.attribution}</div>}
               {m.issues.length > 0 && <div className="model__issues">{t('warning', { issues: issues(m) })}</div>}
               {download && (
@@ -204,11 +194,6 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
 
 function engineName(engine: string): string {
   return engine === 'whisper' ? 'Whisper' : engine.startsWith('sherpa-') ? 'sherpa-onnx' : engine;
-}
-
-/** 97 → «97», 96.9 → «96,9» o «96.9» secondo la lingua del browser. */
-function formatPercent(value: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
 }
 
 /** Peso del modello da 1 a 5 (scala logaritmica, da ~75 MB a ~3 GB) per il misuratore della scheda. */

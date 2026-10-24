@@ -148,4 +148,105 @@ public class ModelSelectorTests
         Assert.Null(result.Recommended);
         Assert.Contains(result.Reasons, r => r.Code == SelectionReason.NoneCompatible);
     }
+
+    private static HardwareProfile WithGpu(HardwareProfile hardware, long? vramGb, string kind = "dedicata") =>
+        (hardware with { GpuDetails = [new GpuDevice("GPU di prova", kind, 0x10DE, vramGb is null ? null : vramGb * 1024 * 1024 * 1024)] }).WithGpuAcceleration(true);
+
+    [Fact]
+    public void Without_gpu_the_limit_follows_the_processor()
+    {
+        var hardware = TestData.Hardware(cores: 16, ramGb: 32);
+
+        var result = ModelSelector.Recommend(hardware, PinnedCatalog(), new HashSet<string>());
+
+        Assert.Contains(CompatibilityIssue.TooSlow, result.Assessments.Single(a => a.Model.Id == "large-v3").Issues);
+        Assert.Contains(result.Reasons, r => r.Code == SelectionReason.CpuBudget);
+    }
+
+    [Fact]
+    public void With_a_dedicated_gpu_the_limit_follows_the_video_memory()
+    {
+        var hardware = WithGpu(TestData.Hardware(cores: 16, ramGb: 32), vramGb: 12);
+
+        var result = ModelSelector.Recommend(hardware, PinnedCatalog(), new HashSet<string>());
+
+        var large = result.Assessments.Single(a => a.Model.Id == "large-v3");
+        Assert.DoesNotContain(CompatibilityIssue.TooSlow, large.Issues);
+        Assert.DoesNotContain(CompatibilityIssue.InsufficientVram, large.Issues);
+        Assert.Equal("large-v3", result.Recommended?.Id);
+        var reason = Assert.Single(result.Reasons, r => r.Code == SelectionReason.GpuBudget);
+        Assert.Equal((12L * 1024 * 1024 * 1024).ToString(System.Globalization.CultureInfo.InvariantCulture), reason.Args["vramBytes"]);
+        Assert.DoesNotContain(result.Reasons, r => r.Code == SelectionReason.CpuBudget);
+    }
+
+    [Fact]
+    public void Small_video_memory_excludes_the_heaviest_models()
+    {
+        var hardware = WithGpu(TestData.Hardware(cores: 16, ramGb: 32), vramGb: 4);
+
+        var result = ModelSelector.Recommend(hardware, PinnedCatalog(), new HashSet<string>());
+
+        Assert.Contains(CompatibilityIssue.InsufficientVram, result.Assessments.Single(a => a.Model.Id == "large-v3").Issues);
+        Assert.DoesNotContain(CompatibilityIssue.InsufficientVram, result.Assessments.Single(a => a.Model.Id == "medium").Issues);
+    }
+
+    [Fact]
+    public void Unknown_video_memory_invents_no_numbers()
+    {
+        var hardware = WithGpu(TestData.Hardware(cores: 16, ramGb: 32), vramGb: null, kind: "integrata");
+
+        var result = ModelSelector.Recommend(hardware, PinnedCatalog(), new HashSet<string>());
+
+        Assert.Null(hardware.GpuVramBytes);
+        Assert.All(result.Assessments.Where(a => a.Model.Engine == "whisper"),
+            a => Assert.DoesNotContain(a.Issues, i => i is CompatibilityIssue.TooSlow or CompatibilityIssue.InsufficientVram));
+        var reason = Assert.Single(result.Reasons, r => r.Code == SelectionReason.GpuBudget);
+        Assert.False(reason.Args.ContainsKey("vramBytes"));
+    }
+
+    [Fact]
+    public void Models_on_other_engines_keep_the_processor_limit_even_with_a_gpu()
+    {
+        var hardware = WithGpu(TestData.Hardware(cores: 1, ramGb: 64), vramGb: 12);
+
+        var result = ModelSelector.Recommend(hardware, PinnedCatalog(), new HashSet<string>());
+
+        Assert.Contains(CompatibilityIssue.TooSlow, result.Assessments.Single(a => a.Model.Engine == "sherpa-canary").Issues);
+    }
+
+    [Fact]
+    public void Gpu_acceleration_needs_the_setting_a_device_and_avx2()
+    {
+        var withDevice = TestData.Hardware() with { GpuDetails = [new GpuDevice("x", "dedicata", 1, 1L << 33)] };
+
+        Assert.True(withDevice.WithGpuAcceleration(true).GpuAcceleration);
+        Assert.False(withDevice.WithGpuAcceleration(false).GpuAcceleration);
+        Assert.False(TestData.Hardware().WithGpuAcceleration(true).GpuAcceleration);
+        Assert.False((withDevice with { CpuFeatures = CpuFeatures.Avx }).WithGpuAcceleration(true).GpuAcceleration);
+    }
+
+    [Fact]
+    public void Video_memory_is_read_from_the_largest_device_local_heap()
+    {
+        var buffer = System.Runtime.InteropServices.Marshal.AllocHGlobal(520);
+        try
+        {
+            for (var i = 0; i < 520; i += 4) System.Runtime.InteropServices.Marshal.WriteInt32(buffer, i, 0);
+            System.Runtime.InteropServices.Marshal.WriteInt32(buffer, 260, 3);
+            // heap 0: 31 GB di RAM di sistema; heap 1: 12 GB locali; heap 2: 256 MB locali (finestra BAR).
+            System.Runtime.InteropServices.Marshal.WriteInt64(buffer, 264, 31L << 30);
+            System.Runtime.InteropServices.Marshal.WriteInt64(buffer, 280, 12L << 30);
+            System.Runtime.InteropServices.Marshal.WriteInt32(buffer, 288, 1);
+            System.Runtime.InteropServices.Marshal.WriteInt64(buffer, 296, 256L << 20);
+            System.Runtime.InteropServices.Marshal.WriteInt32(buffer, 304, 1);
+
+            Assert.Equal(12L << 30, GpuProbe.LargestDeviceLocalHeap(buffer));
+            System.Runtime.InteropServices.Marshal.WriteInt32(buffer, 260, 0);
+            Assert.Null(GpuProbe.LargestDeviceLocalHeap(buffer));
+        }
+        finally
+        {
+            System.Runtime.InteropServices.Marshal.FreeHGlobal(buffer);
+        }
+    }
 }

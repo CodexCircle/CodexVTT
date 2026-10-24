@@ -17,6 +17,7 @@ export function App({ client }: { client: BridgeClient }) {
   const app = useCodexVtt(client);
   const locale = resolveLocale(app.settings?.uiLanguage);
   const theme = app.settings?.theme;
+  const palette = app.settings?.palette;
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -28,6 +29,13 @@ export function App({ client }: { client: BridgeClient }) {
     if (theme) root.dataset.theme = theme;
     else delete root.dataset.theme;
   }, [theme]);
+
+  // Tema di colore (Sabbia, Natale, Halloween, Ciliegia): senza attributo vale l'aspetto predefinito.
+  useEffect(() => {
+    const root = document.documentElement;
+    if (palette) root.dataset.palette = palette;
+    else delete root.dataset.palette;
+  }, [palette]);
 
   return (
     <I18nProvider locale={locale}>
@@ -140,7 +148,7 @@ function Shell({ app }: { app: CodexVttState }) {
                 </span>
               </div>
               {app.error!.code === 'history_folder_blocked' && app.desktop && (
-                <button type="button" className="link" onClick={() => void app.pickHistoryFolder()}>
+                <button type="button" className="link" onClick={() => setTab('settings')}>
                   {t('changeFolder')}
                 </button>
               )}

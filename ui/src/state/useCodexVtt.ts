@@ -405,11 +405,16 @@ export function useCodexVtt(client: BridgeClient) {
       }),
     openHistoryFolder: () => guard(() => client.call('history.openFolder')),
     openLogsFolder: () => guard(() => client.call('diagnostics.openLogs')),
-    pickHistoryFolder: () =>
+    /** Apre la selezione della cartella e restituisce quella scelta, senza salvarla. */
+    pickHistoryFolder: () => guard(async () => (await client.call('history.pickFolder'))?.directory),
+    testHistoryFolder: (directory: string) => guard(() => client.call('history.testFolder', { directory })),
+    /** Adotta la cartella (il core rifà il test): se fallisce resta la precedente. */
+    applyHistoryFolder: (directory: string) =>
       guard(async () => {
-        const updated = await client.call('history.pickFolder');
-        if (updated) setSettings(updated);
+        const updated = await client.call('history.setFolder', { directory });
+        setSettings(updated);
         await refreshHistory();
+        return true;
       }),
     download: (modelId: string) => guard(() => client.call('models.download', { modelId })),
     cancelDownload: (modelId: string) => guard(() => client.call('models.cancelDownload', { modelId })),

@@ -23,6 +23,8 @@ export interface MockOptions {
   failures?: Record<string, string>;
   /** Simula l'annullamento dei dialog di sistema. */
   cancelDialogs?: boolean;
+  /** Il test della cartella di lavoro fallisce con questo codice (not_found, cannot_write…). */
+  folderTestError?: string;
   installed?: string[];
   uiLanguage?: 'it' | 'en';
   /** Punti percentuali per ogni passo della trascrizione simulata (predefinito 25). */
@@ -41,6 +43,8 @@ export interface MockOptions {
   host?: 'desktop' | 'server';
   /** Schede video rilevate (predefinito: nessuna). */
   gpus?: string[];
+  /** Memoria video (GB) della scheda dedicata: con `gpus` simula Whisper sulla scheda video. */
+  gpuVramGb?: number;
   /** Stato iniziale degli aggiornamenti (predefinito: installata e aggiornata). */
   updates?: UpdateStatus;
 }
@@ -59,13 +63,15 @@ export function createMockTransport(options: MockOptions = {}): Transport {
   const event = (name: string, payload?: unknown) => emit({ v: 1, type: 'event', event: name, payload });
   const later = (fn: () => void, steps = 1) => setTimeout(fn, tick * steps);
 
+  const gpuOn = (options.gpus?.length ?? 0) > 0 && options.gpuVramGb !== undefined;
+  const slow: ModelInfo['issues'] = gpuOn ? [] : ['tooSlow'];
   const models: ModelInfo[] = [
     model('tiny', 'Tiny', 77_691_713, 0.27, 1),
     model('base', 'Base', 147_951_465, 0.39, 2),
     model('small', 'Small', 487_601_967, 0.85, 6),
     model('large-v3-turbo-q5_0', 'Large v3 Turbo (q5_0)', 574_041_195, 1.2, 10),
-    model('medium', 'Medium', 1_533_763_059, 2.1, 16, ['tooSlow']),
-    model('large-v3', 'Large v3', 3_095_033_483, 3.9, 32, ['tooSlow']),
+    model('medium', 'Medium', 1_533_763_059, 2.1, 16, slow),
+    model('large-v3', 'Large v3', 3_095_033_483, 3.9, 32, slow),
     {
       ...model('parakeet-tdt-0.6b-v3-int8', 'Parakeet TDT 0.6B v3 (int8)', 670_478_772, 1.5, 2),
       engine: 'sherpa-transducer',
@@ -198,6 +204,13 @@ export function createMockTransport(options: MockOptions = {}): Transport {
       cpuFeatures: 'Avx, Avx2, Fma, F16C',
       freeDiskBytes: 120 * GB,
       gpus: options.gpus ?? [],
+      ...(gpuOn
+        ? {
+            gpuDetails: (options.gpus ?? []).map((name) => ({ name, kind: 'dedicata' as const, vramBytes: options.gpuVramGb! * GB })),
+            gpuAcceleration: true,
+            gpuVramBytes: options.gpuVramGb! * GB,
+          }
+        : {}),
     },
     supportsStandardRuntime: true,
     supportedAudioExtensions: ['.wav', '.mp3', '.m4a', '.aac', '.wma', '.flac', '.ogg', '.opus'],
@@ -279,7 +292,9 @@ export function createMockTransport(options: MockOptions = {}): Transport {
           recommendedId: 'large-v3-turbo-q5_0',
           reasons: [
             { code: 'ram_limit', args: { totalBytes: String(16 * 2 ** 30), limitBytes: String(8 * GB) } },
-            { code: 'cpu_budget', args: { cores: '8', maxCost: '10' } },
+            gpuOn
+              ? { code: 'gpu_budget', args: { cores: '8', vramBytes: String(options.gpuVramGb! * GB), limitBytes: String(Math.floor(options.gpuVramGb! * GB * 0.8)) } }
+              : { code: 'cpu_budget', args: { cores: '8', maxCost: '10' } },
             { code: 'recommended', args: { modelId: 'large-v3-turbo-q5_0', model: 'Large v3 Turbo (q5_0)' } },
           ],
           hardware: system.hardware,
@@ -501,7 +516,12 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         return { opened: true };
       case 'history.pickFolder':
         if (options.cancelDialogs) return null;
-        historyDirectory = 'D:\\Trascrizioni';
+        return { directory: 'D:\\Trascrizioni' };
+      case 'history.testFolder':
+        return options.folderTestError ? { ok: false, error: options.folderTestError } : { ok: true };
+      case 'history.setFolder':
+        if (options.folderTestError) throw { code: 'folder_test_failed', message: options.folderTestError };
+        historyDirectory = String(payload.directory);
         settings = { ...settings, historyDirectory };
         return settings;
       default:

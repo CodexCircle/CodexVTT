@@ -21,7 +21,7 @@ public sealed record AppSettings
     /// <summary>Tema dell'interfaccia: "light", "dark" o null (come il sistema).</summary>
     public string? Theme { get; init; }
 
-    /// <summary>Tema di colore: "sabbia", "natale", "halloween", "ciliegia" o null (Sabbia).</summary>
+    /// <summary>Tema di colore: "sabbia", "natale", "halloween", "ciliegia" o null (aspetto predefinito).</summary>
     public string? Palette { get; init; }
 
     /// <summary>Mascotte: "tina", "giulio" o null (Tina).</summary>

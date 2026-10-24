@@ -99,6 +99,8 @@ public sealed partial class BridgeDispatcher : IDisposable
             ["history.openFolder"] = (_, _) => Task.FromResult<object?>(OpenHistoryFolder()),
             ["diagnostics.openLogs"] = (_, _) => Task.FromResult<object?>(OpenLogsFolder()),
             ["history.pickFolder"] = PickHistoryFolderAsync,
+            ["history.testFolder"] = (p, _) => Task.FromResult<object?>(FolderProbe.Test(Read<FolderRef>(p).Directory)),
+            ["history.setFolder"] = (p, _) => Task.FromResult<object?>(SetHistoryFolder(Read<FolderRef>(p).Directory)),
             ["history.update"] = (p, _) => Task.FromResult<object?>(UpdateHistory(p)),
             ["collections.save"] = (p, _) => Task.FromResult<object?>(SaveCollection(Read<CollectionSaveRequest>(p))),
             ["collections.delete"] = (p, _) => Task.FromResult<object?>(DeleteCollection(Read<HistoryRef>(p).Id)),
@@ -199,7 +201,7 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private object SystemInfo()
     {
-        var hardware = _hardware.Probe(_paths.Models);
+        var hardware = _hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu);
         return new
         {
             AppVersion = AppVersion(),
@@ -214,7 +216,7 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private List<ModelDto> ListModels()
     {
-        var hardware = _hardware.Probe(_paths.Models);
+        var hardware = _hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu);
         var maxCost = ModelSelector.MaxCost(hardware, _models.Catalog.Selection);
         return _models.List().Select(s => ToDto(s, ModelSelector.Assess(
             s.Model, hardware, _models.Catalog.Selection, maxCost, s.State is not ModelState.NotInstalled))).ToList();
@@ -222,7 +224,7 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private object Recommend()
     {
-        var hardware = _hardware.Probe(_paths.Models);
+        var hardware = _hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu);
         var recommendation = ModelSelector.Recommend(hardware, _models.Catalog, _models.InstalledIds());
         return new
         {
@@ -555,12 +557,21 @@ public sealed partial class BridgeDispatcher : IDisposable
         return new { Opened = true };
     }
 
+    /// <summary>Apre la selezione e restituisce la cartella scelta, senza salvarla: va prima testata (<c>history.testFolder</c>).</summary>
     private async Task<object?> PickHistoryFolderAsync(JsonElement? payload, CancellationToken ct)
     {
         var folder = await _shell.PickFolderAsync(ct).ConfigureAwait(false);
-        if (folder is null)
-            return null;
-        var settings = SaveSettings(_settings.Load() with { HistoryDirectory = folder });
+        return folder is null ? null : new FolderRef(folder);
+    }
+
+    /// <summary>Adotta la cartella solo se il test di lettura, scrittura e cancellazione riesce; altrimenti resta la precedente.</summary>
+    private AppSettings SetHistoryFolder(string directory)
+    {
+        var test = FolderProbe.Test(directory);
+        if (!test.Ok)
+            throw new CodexVttException(ErrorCodes.FolderTestFailed, $"Cartella non utilizzabile: {test.Error}.",
+                new Dictionary<string, string> { ["reason"] = test.Error ?? "" });
+        var settings = SaveSettings(_settings.Load() with { HistoryDirectory = directory });
         Emit("history.changed", null);
         return settings;
     }
@@ -702,6 +713,8 @@ public sealed record StartTranscriptionRequest(string AudioId, string? ModelId, 
 public sealed record ExportRequest(string? JobId, string? HistoryId, ExportFormat Format, bool? IncludeHeader);
 
 public sealed record HistoryRef(string Id);
+
+public sealed record FolderRef(string Directory);
 
 public sealed record PickedAudio(string AudioId, AudioInfo Info);
 

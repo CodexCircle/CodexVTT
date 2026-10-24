@@ -33,7 +33,7 @@ export interface BridgeEvent {
 
 export type ModelState = 'notInstalled' | 'downloading' | 'verifying' | 'unverified' | 'ready' | 'corrupted';
 
-export type CompatibilityIssue = 'insufficientMemory' | 'insufficientDisk' | 'tooSlow' | 'notPinned';
+export type CompatibilityIssue = 'insufficientMemory' | 'insufficientDisk' | 'tooSlow' | 'notPinned' | 'insufficientVram';
 
 /** Affidabilità dichiarata: 100 meno il WER sull'italiano, con la fonte. */
 export interface ModelAccuracy {
@@ -81,6 +81,18 @@ export interface HardwareProfile {
   freeDiskBytes: number;
   /** Schede video utilizzabili con Vulkan; vuoto se non ce ne sono (Whisper usa la CPU). */
   gpus?: string[];
+  /** Dettagli delle schede: la memoria video c'è solo per le dedicate e solo se il driver la riporta. */
+  gpuDetails?: GpuDevice[];
+  /** Whisper userà la scheda video (impostazione attiva, scheda trovata, AVX2): i modelli si giudicano dalla sua memoria. */
+  gpuAcceleration?: boolean;
+  /** Memoria video della scheda dedicata più grande, se nota. */
+  gpuVramBytes?: number;
+}
+
+export interface GpuDevice {
+  name: string;
+  kind: 'dedicata' | 'integrata' | 'virtuale';
+  vramBytes?: number;
 }
 
 export interface SystemInfo {
@@ -95,7 +107,7 @@ export interface SystemInfo {
 }
 
 export interface SelectionReason {
-  code: 'ram_limit' | 'cpu_budget' | 'compat_runtime' | 'recommended' | 'none_compatible' | string;
+  code: 'ram_limit' | 'cpu_budget' | 'gpu_budget' | 'compat_runtime' | 'recommended' | 'none_compatible' | string;
   args: Record<string, string>;
 }
 
@@ -210,6 +222,12 @@ export const mascotCharacters = ['tina', 'giulio'] as const;
 export type MascotCharacter = (typeof mascotCharacters)[number];
 
 /** Temi di colore: il primo è il predefinito (salvato come assente). */
+/** Esito del test di una cartella: `error` è not_found, cannot_write, cannot_read o cannot_delete. */
+export interface FolderTestResult {
+  ok: boolean;
+  error?: string;
+}
+
 export const palettes = ['sabbia', 'natale', 'halloween', 'ciliegia'] as const;
 export type Palette = (typeof palettes)[number];
 
@@ -330,7 +348,11 @@ export interface Commands {
   'collections.reorder': { req: { id: string; entryIds: string[] }; res: Collection };
   'history.openFolder': { req: void; res: { opened: boolean } };
   'diagnostics.openLogs': { req: void; res: { opened: boolean } };
-  'history.pickFolder': { req: void; res: AppSettings | null };
+  /** Apre la selezione della cartella: non la salva, va prima testata. */
+  'history.pickFolder': { req: void; res: { directory: string } | null };
+  'history.testFolder': { req: { directory: string }; res: FolderTestResult };
+  /** Salva la cartella solo se il test riesce (altrimenti errore folder_test_failed e resta la precedente). */
+  'history.setFolder': { req: { directory: string }; res: AppSettings };
 }
 
 export interface Events {
