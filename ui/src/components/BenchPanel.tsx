@@ -1,5 +1,5 @@
-import { Fragment, useState } from 'react';
-import type { BenchmarkEntry, BenchmarkReferenceInfo, BenchmarkStale } from '../bridge/protocol';
+import { Fragment, useEffect, useState } from 'react';
+import type { BenchmarkEntry, BenchmarkReferenceInfo, BenchmarkScenario, BenchmarkStale } from '../bridge/protocol';
 import { useI18n, type MessageKey } from '../i18n/i18n';
 import type { CodexVttState } from '../state/useCodexVtt';
 import { ConfirmDialog } from './ConfirmDialog';
@@ -45,15 +45,31 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
   const { t, formatShortDate, formatBytes, languageName } = useI18n();
   const [reference, setReference] = useState<BenchmarkReferenceInfo>();
   const [asking, setAsking] = useState(false);
+  // Cosa provare: lingue e condizioni a spunta. Di base la lingua scelta e l'inglese, pulito e con rumore.
+  const [pickedLanguages, setPickedLanguages] = useState<string[]>();
+  const [pickedScenarios, setPickedScenarios] = useState<BenchmarkScenario[]>(['clean', 'noisy']);
   const { benchmark, benchmarkProgress: progress } = app;
+  const loadReference = app.benchmarkReference;
+  useEffect(() => {
+    // Leggere l'elenco dei brani non scarica nulla: serve a proporre le lingue disponibili.
+    void loadReference().then((info) => info && setReference(info));
+  }, [loadReference]);
+  const availableLanguages = [...new Set((reference?.clips ?? []).map((c) => c.language))].sort();
+  // Con lingua automatica (o una lingua senza brani) si propongono tutte; altrimenti la lingua scelta più l'inglese.
+  const own = availableLanguages.find((l) => l === app.settings?.language);
+  const languagesChosen = pickedLanguages ?? (own ? availableLanguages.filter((l) => l === own || l === 'en') : availableLanguages);
+  const chosenClips = (reference?.clips ?? []).filter((c) => languagesChosen.includes(c.language) && pickedScenarios.includes(c.scenario));
+  const chosenFiles = (reference?.files ?? []).filter((f) => languagesChosen.includes(f.language));
+  const toggle = <T extends string>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value]);
   const busy = benchmark.running || Boolean(app.jobId) || app.queueRunning;
   const names = new Map(app.models.map((m) => [m.id, m.displayName]));
   // Mostrare l'indirizzo non scarica nulla: il download parte solo da «Scarica e avvia».
+  const selection = { languages: languagesChosen, scenarios: pickedScenarios };
   const startOfficial = async () => {
     const info = reference ?? (await app.benchmarkReference());
-    if (!info?.available) return;
+    if (!info?.available || chosenClips.length === 0) return;
     setReference(info);
-    if (info.cached) void app.startBenchmark(true);
+    if (chosenFiles.every((f) => f.cached)) void app.startBenchmark(true, selection);
     else setAsking(true);
   };
   const number = (value: number) => new Intl.NumberFormat(undefined, { maximumFractionDigits: 1 }).format(value);
@@ -88,6 +104,33 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
       <p className="muted">{t('benchWarn')}</p>
       <p className="muted">{t('benchOfficialFile')}</p>
 
+      {app.desktop && reference?.available && !benchmark.running && (
+        <fieldset className="bench__select">
+          <legend>{t('benchSelectTitle')}</legend>
+          <div role="group" aria-label={t('benchSelectLanguages')}>
+            <strong>{t('benchSelectLanguages')}</strong>
+            {availableLanguages.map((l) => (
+              <label key={l}>
+                <input type="checkbox" checked={languagesChosen.includes(l)} onChange={() => setPickedLanguages(toggle(languagesChosen, l))} /> {languageName(l)}
+              </label>
+            ))}
+          </div>
+          <div role="group" aria-label={t('benchSelectScenarios')}>
+            <strong>{t('benchSelectScenarios')}</strong>
+            {(['clean', 'noisy'] as const).map((s) => (
+              <label key={s}>
+                <input type="checkbox" checked={pickedScenarios.includes(s)} onChange={() => setPickedScenarios(toggle(pickedScenarios, s))} /> {t(s === 'clean' ? 'benchColClean' : 'benchColNoisy')}
+              </label>
+            ))}
+          </div>
+          <p className="muted" role="status">
+            {chosenClips.length === 0
+              ? t('benchSelectNone')
+              : t('benchSelectSummary', { clips: chosenClips.length, minutes: Math.round(chosenClips.reduce((sum, c) => sum + c.seconds, 0) / 60) })}
+          </p>
+        </fieldset>
+      )}
+
       {app.desktop && (
         <div className="toolbar">
           {benchmark.running ? (
@@ -96,8 +139,8 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
             </button>
           ) : (
             <>
-              <button type="button" disabled={busy || app.readyModels.length === 0} aria-describedby="bench-hint" onClick={() => void startOfficial()}>
-                {reference?.cached ? t('benchOfficialStartCached') : t('benchOfficialStart')}
+              <button type="button" disabled={busy || app.readyModels.length === 0 || chosenClips.length === 0} aria-describedby="bench-hint" onClick={() => void startOfficial()}>
+                {chosenFiles.length > 0 && chosenFiles.every((f) => f.cached) ? t('benchOfficialStartCached') : t('benchOfficialStart')}
               </button>
               <button type="button" className="secondary" disabled={busy || app.readyModels.length === 0} aria-describedby="bench-hint" onClick={() => void app.startBenchmark()}>
                 {t('benchStart')}
@@ -233,13 +276,13 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
           confirmLabel={t('benchOfficialConfirm')}
           onConfirm={() => {
             setAsking(false);
-            void app.startBenchmark(true).then(() => app.benchmarkReference().then(setReference));
+            void app.startBenchmark(true, selection).then(() => app.benchmarkReference().then(setReference));
           }}
           onCancel={() => setAsking(false)}
         >
-          <p>{t('benchOfficialText', { count: reference.files.filter((f) => !f.cached).length, size: formatBytes(reference.missingBytes) })}</p>
+          <p>{t('benchOfficialText', { count: chosenFiles.filter((f) => !f.cached).length, size: formatBytes(chosenFiles.filter((f) => !f.cached).reduce((sum, f) => sum + f.sizeBytes, 0)) })}</p>
           <ul>
-            {reference.files
+            {chosenFiles
               .filter((f) => !f.cached)
               .map((f) => (
                 <li key={f.id}>

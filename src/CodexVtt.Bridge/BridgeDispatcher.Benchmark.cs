@@ -74,7 +74,7 @@ public sealed partial class BridgeDispatcher
     private async Task<object?> BenchmarkStartAsync(JsonElement? payload, CancellationToken ct)
     {
         EnsureNothingRunning();
-        var request = payload is { ValueKind: JsonValueKind.Object } ? Read<BenchmarkStartRequest>(payload) : new BenchmarkStartRequest(false);
+        var request = payload is { ValueKind: JsonValueKind.Object } ? Read<BenchmarkStartRequest>(payload) : new BenchmarkStartRequest(false, null, null);
         var settings = _settings.Load();
         var jobs = new List<BenchmarkJob>();
         string label;
@@ -82,10 +82,17 @@ public sealed partial class BridgeDispatcher
         {
             // Il download parte solo da questa richiesta esplicita dell'utente (ADR-0006) e solo dagli indirizzi fissati nel codice.
             var provider = _referenceFile ?? throw new CodexVttException(ErrorCodes.NotAvailableOnServer, "File di riferimento non disponibile.");
+            // Lingue e condizioni scelte dall'utente; senza scelta vale tutto il catalogo. Si scarica solo ciò che serve ai brani scelti.
+            var selected = BenchmarkClips.All
+                .Where(c => request.Languages is null || request.Languages.Contains(c.Language))
+                .Where(c => request.Scenarios is null || request.Scenarios.Contains(c.ScenarioKey))
+                .ToList();
+            if (selected.Count == 0)
+                throw new CodexVttException(ErrorCodes.BenchmarkNothingSelected, "Nessun brano selezionato per il Test bench.");
             var files = new Dictionary<string, string>();
-            foreach (var source in BenchmarkClips.Downloads())
+            foreach (var source in selected.Select(BenchmarkClips.SourceOf).DistinctBy(c => c.Id))
                 files[source.Id] = await provider.EnsureAsync(source, ct).ConfigureAwait(false);
-            foreach (var clip in BenchmarkClips.All)
+            foreach (var clip in selected)
             {
                 var handle = _benchmarkAudio.Prepare(clip, files[BenchmarkClips.SourceOf(clip).Id]);
                 jobs.Add(new BenchmarkJob(clip.Id, clip.Language, clip.ScenarioKey, handle.AudioId, handle.Info.Duration.TotalSeconds, clip.ReferenceText));
@@ -194,7 +201,7 @@ public sealed partial class BridgeDispatcher
     }
 }
 
-public sealed record BenchmarkStartRequest(bool? UseReference);
+public sealed record BenchmarkStartRequest(bool? UseReference, IReadOnlyList<string>? Languages, IReadOnlyList<string>? Scenarios);
 
 public sealed record BenchmarkEstimateRequest(string ModelId, IReadOnlyList<double>? Durations);
 

@@ -617,7 +617,14 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         benchCancel = false;
         const outcomes: BenchmarkProgress[] = [];
         // Un passo per modello e brano; con un file proprio c'è un solo brano e nessuna affidabilità.
-        const jobs = payload?.useReference ? mockClips.map((c) => ({ clip: c })) : [{ clip: undefined }];
+        const chosen = mockClips.filter(
+          (c) => (!Array.isArray(payload.languages) || payload.languages.includes(c.language)) && (!Array.isArray(payload.scenarios) || payload.scenarios.includes(c.scenario)),
+        );
+        if (payload?.useReference && chosen.length === 0) {
+          benchRunning = false;
+          throw { code: 'benchmark_nothing_selected', message: 'nothing selected' };
+        }
+        const jobs = payload?.useReference ? chosen.map((c) => ({ clip: c })) : [{ clip: undefined }];
         const total = ready.length * jobs.length;
         const step = (i: number) => {
           if (benchCancel) {
