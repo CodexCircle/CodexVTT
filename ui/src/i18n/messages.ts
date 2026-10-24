@@ -88,6 +88,7 @@ const it = {
   gpu: 'Scheda video',
   gpuNone: 'nessuna compatibile con Vulkan: Whisper usa la CPU',
   useGpu: 'Usa la scheda video (GPU) per Whisper quando disponibile',
+  useGpuRestart: 'Riavvia CodexVTT per applicare il cambio: finché non lo riavvii, Whisper continua a usare il motore di prima.',
   useGpuText: 'Funziona con le schede NVIDIA, AMD e Intel che hanno i driver Vulkan e ripiega da sola sulla CPU. Si applica al prossimo avvio; nel risultato vedi quale runtime è stato usato («Vulkan» o «Cpu»). Parakeet, Canary e Cohere girano sempre sulla CPU.',
   uploading: 'Caricamento dei file sul server…',
 
@@ -330,6 +331,8 @@ const it = {
   folderBlockedCfaUnknown: 'Causa probabile: «Accesso alle cartelle controllato» di Windows (non è stato possibile leggerne lo stato), oppure i permessi della cartella.',
   folderBlockedSteps: 'Come sbloccarla: Sicurezza di Windows → Protezione da virus e minacce → Protezione ransomware → Gestisci protezione ransomware → Consenti app tramite Accesso alle cartelle controllato → Aggiungi un’app consentita, poi scegli l’app qui sotto e riprova. In alternativa scegli una cartella fuori dalle cartelle protette.',
   folderBlockedApp: 'App da consentire',
+  folderFailDetail: 'Dettaglio tecnico',
+  folderFail_test_unavailable: 'Il test non si è potuto eseguire (vedi l’errore mostrato nell’app).',
   folderBlockedHistoryNote: 'Il blocco può non comparire in Cronologia protezione; l’evento si trova in Visualizzatore eventi → Registri applicazioni e servizi → Microsoft → Windows → Windows Defender → Operational (ID 1123).',
   folderFail_cannot_read: 'Il file di prova scritto non si riesce a rileggere.',
   folderFail_cannot_delete: 'Non si può cancellare il file di prova in questa cartella.',
@@ -498,6 +501,7 @@ const en: Record<MessageKey, string> = {
   gpu: 'Graphics card',
   gpuNone: 'none compatible with Vulkan: Whisper uses the CPU',
   useGpu: 'Use the graphics card (GPU) for Whisper when available',
+  useGpuRestart: 'Restart CodexVTT to apply the change: until you do, Whisper keeps using the previous engine.',
   useGpuText: 'Works with NVIDIA, AMD and Intel cards that have Vulkan drivers and falls back to the CPU on its own. Applies at the next start; the result shows which runtime was used (“Vulkan” or “Cpu”). Parakeet, Canary and Cohere always run on the CPU.',
   uploading: 'Uploading the files to the server…',
 
@@ -735,6 +739,8 @@ const en: Record<MessageKey, string> = {
   folderBlockedCfaUnknown: 'Likely cause: Windows Controlled folder access (its state could not be read), or the folder permissions.',
   folderBlockedSteps: 'To unblock it: Windows Security → Virus & threat protection → Ransomware protection → Manage ransomware protection → Allow an app through Controlled folder access → Add an allowed app, then pick the app below and try again. Or choose a folder outside the protected ones.',
   folderBlockedApp: 'App to allow',
+  folderFailDetail: 'Technical detail',
+  folderFail_test_unavailable: 'The test could not be run (see the error shown in the app).',
   folderBlockedHistoryNote: 'The block may not appear in Protection history; the event is in Event Viewer → Applications and Services Logs → Microsoft → Windows → Windows Defender → Operational (ID 1123).',
   folderFail_cannot_read: 'The test file that was written cannot be read back.',
   folderFail_cannot_delete: 'The test file cannot be deleted in this folder.',

@@ -271,14 +271,31 @@ public sealed class BenchmarkRunnerTests : IDisposable
         Assert.Equal("base", Assert.Single(outcomes).ModelId);
     }
 
+    [Fact]
+    public async Task The_first_model_is_warmed_up_once_and_only_the_measured_run_is_saved()
+    {
+        await _models.ImportAsync(_dir.File("base.bin", BaseContent));
+
+        var outcomes = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, CancellationToken.None);
+
+        Assert.Single(outcomes);
+        Assert.Equal(2, _engine.Sessions); // prova a vuoto + misura
+        Assert.Single(_results.Read().Entries);
+    }
+
     private sealed class SlowEngine : ITranscriptionEngine
     {
+        public int Sessions { get; private set; }
+
         public TimeSpan Delay { get; set; } = TimeSpan.FromMilliseconds(20);
 
         public string? FailFor { get; set; }
 
-        public Task<ITranscriptionSession> LoadAsync(ModelDescriptor model, string modelPath, CancellationToken ct) =>
-            Task.FromResult<ITranscriptionSession>(new Session(this, model.Id));
+        public Task<ITranscriptionSession> LoadAsync(ModelDescriptor model, string modelPath, CancellationToken ct)
+        {
+            Sessions++;
+            return Task.FromResult<ITranscriptionSession>(new Session(this, model.Id));
+        }
 
         private sealed class Session(SlowEngine owner, string modelId) : ITranscriptionSession
         {

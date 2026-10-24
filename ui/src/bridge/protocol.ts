@@ -231,6 +231,8 @@ export interface FolderTestResult {
   error?: string;
   controlledFolderAccess?: 'on' | 'audit' | 'off' | 'unknown';
   appPath?: string;
+  /** Eccezione grezza (tipo e HRESULT), per capire cosa ha restituito il sistema. */
+  detail?: string;
 }
 
 /** Perché una misura del Test bench non vale più (`none` = vale). */

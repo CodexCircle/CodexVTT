@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BridgeCallError, type BridgeClient } from '../bridge/client';
 import type {
   AppSettings,
@@ -58,6 +58,8 @@ export function useCodexVtt(client: BridgeClient) {
   const [models, setModels] = useState<ModelInfo[]>([]);
   const [recommendation, setRecommendation] = useState<Recommendation>();
   const [settings, setSettings] = useState<AppSettings>();
+  /** Valore di «Usa la scheda video» all'avvio: il motore di Whisper si sceglie una volta per processo. */
+  const gpuAtStart = useRef<boolean | undefined>(undefined);
   const [audio, setAudio] = useState<PickedAudio>();
   const [jobId, setJobId] = useState<string>();
   const [progress, setProgress] = useState<JobProgress>();
@@ -110,6 +112,7 @@ export function useCodexVtt(client: BridgeClient) {
         ]);
         setBenchmark(bench);
         setSystem(info);
+        gpuAtStart.current ??= s.useGpu !== false;
         setSettings(s);
         setUpdates(u);
         setQueueState(q ?? emptyQueue);
@@ -292,6 +295,7 @@ export function useCodexVtt(client: BridgeClient) {
     activeModel,
     recommendation,
     settings,
+    gpuAtStart: gpuAtStart.current,
     audio,
     queue,
     queueRunning,

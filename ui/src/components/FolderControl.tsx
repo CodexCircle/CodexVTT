@@ -28,7 +28,8 @@ export function FolderControl({ app, compact = false }: { app: CodexVttState; co
     setCheck({ phase: 'testing' });
     const result = await app.testHistoryFolder(pending);
     if (!result) {
-      setCheck({ phase: 'failed', reason: 'cannot_write' });
+      // La chiamata stessa è fallita: l'errore del bridge è già mostrato, qui non è un problema di scrittura.
+      setCheck({ phase: 'failed', reason: 'test_unavailable' });
       return;
     }
     if (!result.ok) {
@@ -83,6 +84,11 @@ export function FolderControl({ app, compact = false }: { app: CodexVttState; co
               )}
               <p className="muted">{t('folderBlockedHistoryNote')}</p>
             </div>
+          )}
+          {check.phase === 'failed' && check.detail?.detail && (
+            <p className="muted">
+              {t('folderFailDetail')}: <code>{check.detail.detail}</code>
+            </p>
           )}
           {check.phase === 'untested' && <p className="muted">{t('folderUntestedHint')}</p>}
         </div>

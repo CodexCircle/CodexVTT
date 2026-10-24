@@ -3,9 +3,10 @@ namespace CodexVtt.Core.History;
 /// <summary>
 /// Esito del test di una cartella di lavoro. <c>Error</c> è un codice stabile che la UI traduce.
 /// <c>ControlledFolderAccess</c> (<c>on</c>, <c>audit</c>, <c>off</c>, <c>unknown</c>) e <c>AppPath</c> compaiono solo con
-/// <c>blocked_by_windows</c>, per dire all'utente quale app autorizzare.
+/// <c>blocked_by_windows</c>, per dire all'utente quale app autorizzare. <c>Detail</c> è l'eccezione grezza (tipo e HRESULT),
+/// mostrata nell'avviso per capire cosa ha restituito davvero il sistema.
 /// </summary>
-public sealed record FolderTestResult(bool Ok, string? Error = null, string? ControlledFolderAccess = null, string? AppPath = null)
+public sealed record FolderTestResult(bool Ok, string? Error = null, string? ControlledFolderAccess = null, string? AppPath = null, string? Detail = null)
 {
     public const string NotFound = "not_found";
     /// <summary>Scrittura negata dal sistema su Windows: causa probabile «Accesso alle cartelle controllato» (o i permessi della cartella).</summary>
@@ -49,13 +50,9 @@ public static class FolderProbe
             {
                 File.WriteAllText(path, Content);
             }
-            catch (UnauthorizedAccessException) when (OperatingSystem.IsWindows())
-            {
-                return Blocked();
-            }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                return new FolderTestResult(false, FolderTestResult.CannotWrite);
+                return Failure(ex, FolderTestResult.CannotWrite);
             }
 
             try
@@ -65,7 +62,7 @@ public static class FolderProbe
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                return new FolderTestResult(false, FolderTestResult.CannotRead);
+                return Failure(ex, FolderTestResult.CannotRead);
             }
 
             try
@@ -74,7 +71,7 @@ public static class FolderProbe
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                return new FolderTestResult(false, FolderTestResult.CannotDelete);
+                return Failure(ex, FolderTestResult.CannotDelete);
             }
 
             if (File.Exists(path))
@@ -97,8 +94,22 @@ public static class FolderProbe
         }
     }
 
-    private static FolderTestResult Blocked() =>
-        new(false, FolderTestResult.BlockedByWindows, ControlledFolderAccessState(), Environment.ProcessPath);
+    private const int ErrorHandleDiskFull = unchecked((int)0x80070027);
+    private const int ErrorDiskFull = unchecked((int)0x80070070);
+    private const int ErrorFilenameExcedRange = unchecked((int)0x800700CE);
+
+    /// <summary>
+    /// Su Windows un rifiuto del sistema (accesso negato, ma anche file «infetto» o altro errore di I/O che non sia disco
+    /// pieno o percorso troppo lungo) viene da «Accesso alle cartelle controllato» o dai permessi: Defender non sempre
+    /// risponde con <see cref="UnauthorizedAccessException"/>. Il dettaglio grezzo resta nell'esito.
+    /// </summary>
+    private static FolderTestResult Failure(Exception ex, string fallback)
+    {
+        var detail = $"{ex.GetType().Name} 0x{ex.HResult:X8}";
+        if (OperatingSystem.IsWindows() && ex.HResult is not (ErrorHandleDiskFull or ErrorDiskFull or ErrorFilenameExcedRange))
+            return new FolderTestResult(false, FolderTestResult.BlockedByWindows, ControlledFolderAccessState(), Environment.ProcessPath, detail);
+        return new FolderTestResult(false, fallback, Detail: detail);
+    }
 
     /// <summary>
     /// Stato di «Accesso alle cartelle controllato» letto dal registro (best effort, sola lettura):

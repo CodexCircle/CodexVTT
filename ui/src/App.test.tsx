@@ -189,6 +189,18 @@ describe('App', () => {
     expect(screen.getByText(/CodexVtt\.App\.exe$/)).toBeInTheDocument();
   });
 
+  it('asks to restart after the GPU option is changed', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));
+
+    const box = await screen.findByRole('checkbox', { name: /scheda video/ });
+    expect(screen.queryByText(/Riavvia CodexVTT per applicare/)).not.toBeInTheDocument();
+    await user.click(box);
+    expect(await screen.findByText(/Riavvia CodexVTT per applicare/)).toBeInTheDocument();
+    await user.click(box);
+    await waitFor(() => expect(screen.queryByText(/Riavvia CodexVTT per applicare/)).not.toBeInTheDocument());
+  });
+
   it('lets the user pick a color theme and applies it to the document', async () => {
     const { user } = setup({ installed: ['base'] });
     await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));

@@ -39,11 +39,22 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
         try
         {
             var ready = models.List().Where(s => s.State is ModelState.Ready).Select(s => s.Model).ToList();
+            // Il primo modello paga da solo i costi una tantum del processo (runtime nativo, driver video, cache del disco):
+            // senza una prova a vuoto il suo tempo fisso risultava più alto di quello dei modelli più grandi provati dopo.
+            if (ready.Count > 0)
+            {
+                Publish(new BenchmarkProgress(ready[0].Id, 0, ready.Count, "running"));
+                var warmUp = await MeasureAsync(ready[0], 0, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, ct, record: false).ConfigureAwait(false);
+                if (warmUp.ErrorCode == ErrorCodes.TranscriptionBusy)
+                    return outcomes;
+            }
+
             for (var i = 0; i < ready.Count; i++)
             {
                 ct.ThrowIfCancellationRequested();
                 var model = ready[i];
-                Publish(new BenchmarkProgress(model.Id, i, ready.Count, "running"));
+                if (i > 0)
+                    Publish(new BenchmarkProgress(model.Id, i, ready.Count, "running"));
                 var outcome = await MeasureAsync(model, i, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, ct).ConfigureAwait(false);
                 outcomes.Add(outcome);
                 Publish(outcome);
@@ -70,7 +81,8 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
         string appVersion,
         string language,
         int? threads,
-        CancellationToken ct)
+        CancellationToken ct,
+        bool record = true)
     {
         var clock = Stopwatch.StartNew();
         double? firstWork = null;
@@ -91,6 +103,8 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
             if (measured is null)
                 return new BenchmarkProgress(model.Id, index, total, "failed", ErrorCode: ErrorCodes.TranscriptionFailed);
             var (load, speed) = measured.Value;
+            if (!record)
+                return new BenchmarkProgress(model.Id, index, total, "running");
             store.Record(fingerprint, new BenchmarkEntry(model.Id, BenchmarkStore.ModelIdentity(model), result.Model.Runtime, threads, audioSeconds, load, speed, DateTimeOffset.UtcNow, appVersion));
             return new BenchmarkProgress(model.Id, index, total, "done", speed, load);
         }
