@@ -16,15 +16,18 @@ interface Props {
   onExport: (format: ExportFormat) => void;
   /** Scrive i segmenti nella cronologia; assente se la trascrizione non è ancora in cronologia. Restituisce false se non è riuscito. */
   onSave?: (segments: { start: number; end: number; text: string }[]) => Promise<boolean>;
+  /** Indirizzo dell'audio originale; senza (o se non si carica) il lettore muove solo il cursore sulla timeline. */
+  loadAudio?: () => Promise<string | undefined>;
   onDirtyChange: (dirty: boolean) => void;
   onCopied: () => void;
 }
 
 /**
  * Editor di una trascrizione: segmenti con parlanti e tempi cliccabili, timeline con lettore e pannello delle proprietà.
- * Il lettore sposta il cursore sulla timeline: la riproduzione dell'audio non passa ancora dal bridge (#24).
+ * Il lettore riproduce l'audio originale quando c'è (history.audio) e il cursore della timeline ne segue il tempo;
+ * altrimenti muove solo il cursore con un orologio proprio.
  */
-export function Editor({ result, title, onRename, onExport, onSave, onDirtyChange, onCopied }: Props) {
+export function Editor({ result, title, onRename, onExport, onSave, loadAudio, onDirtyChange, onCopied }: Props) {
   const { t } = useI18n();
   const editor = useEditorState(result);
   const { segments, speakers } = editor;
@@ -44,6 +47,24 @@ export function Editor({ result, title, onRename, onExport, onSave, onDirtyChang
   const ppsRef = useRef(pps);
   ppsRef.current = pps;
 
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [audioUrl, setAudioUrl] = useState<string>();
+  const [audioLost, setAudioLost] = useState(false);
+  // Una sola volta per trascrizione aperta (l'editor riparte da zero a ogni trascrizione).
+  const loadAudioRef = useRef(loadAudio);
+  useEffect(() => {
+    let cancelled = false;
+    void loadAudioRef.current?.().then((url) => {
+      if (cancelled) return;
+      setAudioUrl(url);
+      setAudioLost(!url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const hasAudio = audioUrl !== undefined && !audioLost;
+
   useEffect(() => onDirtyChange(editor.dirty), [editor.dirty, onDirtyChange]);
 
   const place = useCallback(() => {
@@ -55,6 +76,7 @@ export function Editor({ result, title, onRename, onExport, onSave, onDirtyChang
   const seek = useCallback(
     (seconds: number) => {
       time.current = seconds;
+      if (audioRef.current) audioRef.current.currentTime = seconds;
       place();
     },
     [place],
@@ -70,10 +92,13 @@ export function Editor({ result, title, onRename, onExport, onSave, onDirtyChang
     if (!playing) return;
     last.current = performance.now();
     const step = (now: number) => {
-      time.current += ((now - last.current) / 1000) * speed;
+      // Con l'audio il tempo è quello del lettore (resta in sintonia anche se si ferma a caricare).
+      if (audioRef.current && hasAudio) time.current = audioRef.current.currentTime;
+      else time.current += ((now - last.current) / 1000) * speed;
       last.current = now;
       if (time.current >= duration) {
         time.current = 0;
+        if (audioRef.current) audioRef.current.currentTime = 0;
         place();
         setPlaying(false);
         return;
@@ -86,7 +111,16 @@ export function Editor({ result, title, onRename, onExport, onSave, onDirtyChang
     };
     frame.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame.current);
-  }, [playing, speed, duration, place]);
+  }, [playing, speed, duration, place, hasAudio]);
+
+  // Avvio, pausa e velocità del lettore audio seguono il trasporto; se il file non parte si torna al cursore senza audio.
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    el.playbackRate = speed;
+    if (playing) void el.play().catch(() => setAudioLost(true));
+    else el.pause();
+  }, [playing, speed, hasAudio]);
 
   useEffect(() => stop, [stop]);
 
@@ -164,6 +198,9 @@ export function Editor({ result, title, onRename, onExport, onSave, onDirtyChang
   return (
     <>
       <section className="editor" aria-labelledby="result-title">
+        {audioUrl && !audioLost && (
+          <audio ref={audioRef} src={audioUrl} preload="metadata" onEnded={() => setPlaying(false)} onError={() => setAudioLost(true)} />
+        )}
         <div className="etop">
           <button type="button" className="btn icon" title={t('undoEdit')} aria-label={t('undoEdit')} disabled={!editor.canUndo} onClick={editor.undo}>
             <Icon name="undo" />
@@ -185,6 +222,11 @@ export function Editor({ result, title, onRename, onExport, onSave, onDirtyChang
             {t('copy')}
           </button>
         </div>
+        {audioLost && loadAudio && (
+          <p className="note" role="status">
+            {t('audioMissing')}
+          </p>
+        )}
         <SegmentList
           segments={segments}
           speakers={speakers}

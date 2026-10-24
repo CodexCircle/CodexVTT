@@ -54,6 +54,9 @@ public sealed class AudioLibrary
         return item.Decoder.OpenPcm16kMono(item.Path);
     }
 
+    /// <summary>Percorso del file scelto: serve alla cronologia per riascoltarlo, non arriva mai alla UI.</summary>
+    public string PathOf(string audioId) => Get(audioId).Path;
+
     public string SuggestedExportName(string audioId) => Path.GetFileNameWithoutExtension(Get(audioId).Path);
 
     private (string Path, AudioInfo Info, IAudioDecoder Decoder) Get(string audioId) =>

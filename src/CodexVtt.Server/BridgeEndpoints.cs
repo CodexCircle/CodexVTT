@@ -23,6 +23,8 @@ public static partial class BridgeEndpoints
         app.Map("/bridge", HandleSocketAsync);
         app.MapPost("/api/audio", UploadAsync).DisableAntiforgery();
         app.MapGet("/api/export", ExportAsync);
+        app.MapGet("/audio/{id}", (string id, BridgeDispatcher dispatcher) =>
+            dispatcher.OpenHistoryAudio(id) is { } audio ? Results.File(audio.Path, audio.ContentType, enableRangeProcessing: true) : Results.NotFound());
     }
 
     private static async Task HandleSocketAsync(HttpContext context, BridgeDispatcher dispatcher, ClientHub hub, ILoggerFactory loggers)

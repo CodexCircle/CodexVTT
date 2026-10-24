@@ -64,6 +64,36 @@ public sealed class TranscriptHistoryTests : IDisposable
     }
 
     [Fact]
+    public void Original_audio_is_found_only_while_the_file_exists_and_survives_edits()
+    {
+        var history = new TranscriptHistory(_dir.Path);
+        var audio = Path.Combine(_dir.Path, "lezione.mp3");
+        File.WriteAllText(audio, "x");
+        var saved = history.Save(Result(), audioPath: audio);
+        var without = history.Save(Result());
+
+        Assert.Equal(audio, history.FindAudio(saved.Id));
+        Assert.Null(history.FindAudio(without.Id));
+
+        history.UpdateSegments(saved.Id, [new TranscriptSegment(TimeSpan.Zero, TimeSpan.FromSeconds(1), "Corretto.", null)]);
+        Assert.Equal(audio, history.FindAudio(saved.Id));
+
+        File.Delete(audio);
+        Assert.Null(history.FindAudio(saved.Id));
+        Assert.Throws<CodexVttException>(() => history.FindAudio("assente"));
+    }
+
+    [Fact]
+    public void Audio_is_served_only_for_known_audio_extensions()
+    {
+        var history = new TranscriptHistory(_dir.Path);
+        var secret = Path.Combine(_dir.Path, "segreti.txt");
+        File.WriteAllText(secret, "x");
+
+        Assert.Null(history.FindAudio(history.Save(Result(), audioPath: secret).Id));
+    }
+
+    [Fact]
     public void List_is_newest_first_and_round_trips_results()
     {
         var history = new TranscriptHistory(_dir.Path);

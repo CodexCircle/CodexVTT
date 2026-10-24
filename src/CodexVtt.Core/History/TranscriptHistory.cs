@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using CodexVtt.Core.Audio;
 using CodexVtt.Core.Errors;
 using CodexVtt.Core.Export;
 using CodexVtt.Core.Transcription;
@@ -42,13 +43,13 @@ public sealed class TranscriptHistory
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "CodexVTT", "history");
 
     /// <summary>Salva una trascrizione completata e restituisce la voce creata.</summary>
-    public HistoryEntry Save(TranscriptionResult result, string language = "it")
+    public HistoryEntry Save(TranscriptionResult result, string language = "it", string? audioPath = null)
     {
         lock (_gate)
         {
             System.IO.Directory.CreateDirectory(Directory);
             var id = UniqueBaseName(result);
-            var document = new HistoryDocument(Format, FormatVersion, result);
+            var document = new HistoryDocument(Format, FormatVersion, result, audioPath);
             WriteAtomic(Path.Combine(Directory, id + ".json"), JsonSerializer.Serialize(document, Json));
             WriteAtomic(Path.Combine(Directory, id + ".txt"),
                 TranscriptExporter.Render(result, ExportFormat.Txt, new ExportOptions(IncludeHeader: true, Language: language)));
@@ -64,8 +65,9 @@ public sealed class TranscriptHistory
     {
         lock (_gate)
         {
-            var result = Load(id) with { Segments = segments };
-            var document = new HistoryDocument(Format, FormatVersion, result);
+            var current = Read(PathFor(id, ".json")) ?? throw NotFound();
+            var result = current.Result! with { Segments = segments };
+            var document = new HistoryDocument(Format, FormatVersion, result, current.AudioPath);
             WriteAtomic(PathFor(id, ".json"), JsonSerializer.Serialize(document, Json));
             WriteAtomic(PathFor(id, ".txt"),
                 TranscriptExporter.Render(result, ExportFormat.Txt, new ExportOptions(IncludeHeader: true, Language: language)));
@@ -90,9 +92,16 @@ public sealed class TranscriptHistory
         return entries.OrderByDescending(e => e.CompletedAt).ThenByDescending(e => e.Id, StringComparer.Ordinal).ToList();
     }
 
-    public TranscriptionResult Load(string id) =>
-        TryRead(PathFor(id, ".json"))
-        ?? throw new CodexVttException(ErrorCodes.HistoryNotFound, "Trascrizione non trovata nella cronologia.");
+    public TranscriptionResult Load(string id) => (Read(PathFor(id, ".json")) ?? throw NotFound()).Result!;
+
+    /// <summary>Percorso dell'audio originale della trascrizione, se registrato, è un audio noto e il file esiste ancora.</summary>
+    public string? FindAudio(string id)
+    {
+        var path = (Read(PathFor(id, ".json")) ?? throw NotFound()).AudioPath;
+        return path is { Length: > 0 } && Path.IsPathFullyQualified(path) && AudioMedia.ContentType(path) is not null && File.Exists(path) ? path : null;
+    }
+
+    private static CodexVttException NotFound() => new(ErrorCodes.HistoryNotFound, "Trascrizione non trovata nella cronologia.");
 
     public void Delete(string id)
     {
@@ -147,14 +156,16 @@ public sealed class TranscriptHistory
         return Path.Combine(Directory, id + extension);
     }
 
-    private static TranscriptionResult? TryRead(string path)
+    private static TranscriptionResult? TryRead(string path) => Read(path)?.Result;
+
+    private static HistoryDocument? Read(string path)
     {
         if (!File.Exists(path))
             return null;
         try
         {
             var document = JsonSerializer.Deserialize<HistoryDocument>(File.ReadAllText(path), Json);
-            return document is { Format: Format, Version: <= FormatVersion, Result: not null } ? document.Result : null;
+            return document is { Format: Format, Version: <= FormatVersion, Result: not null } ? document : null;
         }
         catch (Exception ex) when (ex is JsonException or IOException or NotSupportedException)
         {
@@ -183,5 +194,5 @@ public sealed class TranscriptHistory
         File.Move(temp, path, overwrite: true);
     }
 
-    private sealed record HistoryDocument(string Format, int Version, TranscriptionResult? Result);
+    private sealed record HistoryDocument(string Format, int Version, TranscriptionResult? Result, string? AudioPath = null);
 }

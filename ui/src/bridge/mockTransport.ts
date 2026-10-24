@@ -544,6 +544,9 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         }
         return entry(id, r);
       }
+      case 'history.audio':
+        if (!history.get(String(payload.id))) throw { code: 'history_not_found', message: 'not found' };
+        return { available: false };
       case 'history.saveEdits': {
         const id = String(payload.id);
         const r = history.get(id);
