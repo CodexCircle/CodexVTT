@@ -222,10 +222,15 @@ export const mascotCharacters = ['tina', 'giulio'] as const;
 export type MascotCharacter = (typeof mascotCharacters)[number];
 
 /** Temi di colore: il primo è il predefinito (salvato come assente). */
-/** Esito del test di una cartella: `error` è not_found, cannot_write, cannot_read o cannot_delete. */
+/**
+ * Esito del test di una cartella: `error` è not_found, blocked_by_windows, cannot_write, cannot_read o cannot_delete.
+ * Con blocked_by_windows arrivano anche lo stato di «Accesso alle cartelle controllato» e il percorso dell'app da autorizzare.
+ */
 export interface FolderTestResult {
   ok: boolean;
   error?: string;
+  controlledFolderAccess?: 'on' | 'audit' | 'off' | 'unknown';
+  appPath?: string;
 }
 
 /** Perché una misura del Test bench non vale più (`none` = vale). */

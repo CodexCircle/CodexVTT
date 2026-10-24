@@ -176,6 +176,19 @@ describe('App', () => {
     expect(screen.getByText(/Trascrizioni$/)).toBeInTheDocument(); // solo la scelta in attesa, non salvata
   });
 
+  it('explains a Windows block with the likely cause and the app to allow', async () => {
+    const { user } = setup({ installed: ['base'], folderTestError: 'blocked_by_windows' });
+    await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Cambia cartella…' }));
+    await user.click(screen.getByRole('button', { name: 'Testa cartella' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Windows ha negato la scrittura in questa cartella.');
+    expect(screen.getByText(/«Accesso alle cartelle controllato» è attivo/)).toBeInTheDocument();
+    expect(screen.getByText(/Consenti app tramite Accesso alle cartelle controllato/)).toBeInTheDocument();
+    expect(screen.getByText(/CodexVtt\.App\.exe$/)).toBeInTheDocument();
+  });
+
   it('lets the user pick a color theme and applies it to the document', async () => {
     const { user } = setup({ installed: ['base'] });
     await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));

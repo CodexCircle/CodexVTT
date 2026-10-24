@@ -68,6 +68,10 @@ Dalla sezione **Cronologia** (o dall'elenco **Recenti** di Home) puoi riaprire u
 
 Se su Windows è attivo **Accesso alle cartelle controllato** (Sicurezza di Windows → Protezione da virus e minacce → Protezione ransomware), Defender può impedire a CodexVTT di scrivere in `Documenti`. In quel caso CodexVTT te lo dice, mette la trascrizione al sicuro in `%LOCALAPPDATA%\CodexVTT.Data\history-recovery` e ti propone **Cambia cartella…**. Per usare `Documenti` consenti `CodexVtt.App.exe` tra le app consentite; lo stesso vale per l'export nella cartella proposta dal dialogo di salvataggio.
 
+Quando scegli una cartella con **Cambia cartella…** e **Testa cartella** non riesce a scrivere, CodexVTT mostra «Windows ha negato la scrittura», lo stato di Accesso alle cartelle controllato (se leggibile) e il percorso dell'app da consentire in Sicurezza di Windows → Protezione da virus e minacce → Protezione ransomware → Consenti app tramite Accesso alle cartelle controllato. Dopo averla aggiunta, rifai il test.
+
+**Se il blocco non compare in Cronologia protezione.** CodexVTT non può scrivere in quella cronologia né leggerla: la riempie solo Defender, e per questo tipo di blocco non sempre crea una voce visibile (o la mostra con un filtro diverso da quello impostato). Il registro affidabile è Visualizzatore eventi → Registri applicazioni e servizi → Microsoft → Windows → Windows Defender → Operational, evento **1123** (accesso bloccato) o **1124** (solo audit); può servire eseguirlo come amministratore. Se l'evento c'è, il nome dell'app e il percorso indicano cosa autorizzare.
+
 Se la cartella è sincronizzata da OneDrive o da un servizio simile, le trascrizioni verranno copiate nel cloud da quel servizio, non da CodexVTT: scegli una cartella non sincronizzata se vuoi che restino solo sul PC.
 
 ## Esportare

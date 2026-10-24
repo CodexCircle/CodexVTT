@@ -593,7 +593,10 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         if (options.cancelDialogs) return null;
         return { directory: 'D:\\Trascrizioni' };
       case 'history.testFolder':
-        return options.folderTestError ? { ok: false, error: options.folderTestError } : { ok: true };
+        if (!options.folderTestError) return { ok: true };
+        return options.folderTestError === 'blocked_by_windows'
+          ? { ok: false, error: 'blocked_by_windows', controlledFolderAccess: 'on', appPath: 'C:\\Users\\utente\\AppData\\Local\\CodexVTT\\current\\CodexVtt.App.exe' }
+          : { ok: false, error: options.folderTestError };
       case 'history.setFolder':
         if (options.folderTestError) throw { code: 'folder_test_failed', message: options.folderTestError };
         historyDirectory = String(payload.directory);
