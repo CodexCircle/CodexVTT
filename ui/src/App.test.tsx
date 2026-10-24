@@ -39,7 +39,7 @@ describe('App', () => {
     await user.click(await screen.findByRole('button', { name: 'Modelli' }));
 
     const small = await screen.findByRole('listitem', { name: 'Small' });
-    expect(within(small).getByText(/488 MB su disco/)).toBeInTheDocument();
+    expect(within(small).getByText(/488 MB/)).toBeInTheDocument();
     await user.click(within(small).getByRole('button', { name: 'Scarica…' }));
 
     const dialog = screen.getByRole('dialog');
@@ -239,7 +239,7 @@ describe('App', () => {
     expect(within(medium).queryByText(/troppo pesante per il processore/)).not.toBeInTheDocument();
   });
 
-  it('shows the PC and model details in an «i» tooltip on hover and on keyboard focus', async () => {
+  it('shows the model details in an «i» tooltip on hover and on keyboard focus', async () => {
     const { user } = setup({ gpus: ['NVIDIA GeForce RTX 3060'], gpuVramGb: 12 });
     await user.click(await screen.findByRole('button', { name: 'Modelli' }));
     const small = await screen.findByRole('listitem', { name: 'Small' });
@@ -250,9 +250,10 @@ describe('App', () => {
 
     await user.hover(info);
     expect(tip).toHaveAttribute('data-open', 'true');
-    expect(tip).toHaveTextContent('Processore: 8 core logici');
-    expect(tip).toHaveTextContent('Memoria video: 12 GB');
+    expect(tip).toHaveTextContent('Informazioni sul modello');
+    expect(tip).toHaveTextContent('Licenza:');
     expect(tip).toHaveTextContent('Memoria richiesta');
+    expect(tip).not.toHaveTextContent('Questo PC');
     expect(tip).toHaveTextContent('Affidabilità');
     await user.unhover(info);
     expect(tip).toHaveAttribute('data-open', 'false');
@@ -263,16 +264,31 @@ describe('App', () => {
     expect(tip).toHaveAttribute('data-open', 'false');
   });
 
-  it('lists the engines each model uses', async () => {
+  it('marks Whisper models that run on the graphics card and keeps the cards free of redundant details', async () => {
     const { user } = setup({ gpus: ['NVIDIA GeForce RTX 3060'], gpuVramGb: 12 });
     await user.click(await screen.findByRole('button', { name: 'Modelli' }));
     const small = await screen.findByRole('listitem', { name: 'Small' });
-    const engines = within(small).getByRole('list', { name: 'Motori usati' });
-    expect(within(engines).getByText('Trascrizione: Whisper sulla scheda video')).toBeInTheDocument();
-    expect(within(engines).getByText(/Controllo ortografico/)).toBeInTheDocument();
-    expect(within(engines).getByText(/Punteggiatura e frasi/)).toBeInTheDocument();
+    expect(within(small).getByText('GPU')).toBeInTheDocument();
+    expect(within(small).queryByRole('list', { name: 'Motori usati' })).not.toBeInTheDocument();
+    expect(within(small).queryByText(/licenza/)).not.toBeInTheDocument();
     const parakeet = screen.getByRole('listitem', { name: /Parakeet/ });
-    expect(within(parakeet).getByText('Trascrizione: sherpa-onnx sul processore')).toBeInTheDocument();
+    expect(within(parakeet).queryByText('GPU')).not.toBeInTheDocument();
+  });
+
+  it('shows a disabled «Modello in uso» button and a red remove button on installed models', async () => {
+    const { user } = setup({ installed: ['base', 'small'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const base = await screen.findByRole('listitem', { name: 'Base' });
+    const small = screen.getByRole('listitem', { name: 'Small' });
+    const inUse = within(base).queryByRole('button', { name: 'Modello in uso' });
+    const other = within(small).queryByRole('button', { name: 'Usa questo modello' });
+    expect(inUse ?? other).not.toBeNull();
+    if (inUse) expect(inUse).toBeDisabled();
+    expect(within(base).getByRole('button', { name: 'Rimuovi' })).toHaveClass('danger');
+    expect(within(small).getByRole('button', { name: 'Rimuovi' })).toHaveClass('danger');
+
+    await user.click(within(small).getByRole('button', { name: 'Rimuovi' }));
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'Rimuovi' })).toHaveClass('danger');
   });
 
   it('runs the Test bench on every installed model and lists the measured speed', async () => {
@@ -615,20 +631,18 @@ describe('Nuovi modelli e GPU', () => {
 
     const parakeet = await screen.findByRole('listitem', { name: 'Parakeet TDT 0.6B v3 (int8)' });
     expect(within(parakeet).getByText('Anteprima')).toBeInTheDocument();
-    expect(within(parakeet).getByText(/Trascrizione: sherpa-onnx/)).toBeInTheDocument();
     // L'affidabilità sta nella «i» del modello, non più come testo fisso nella scheda.
     const tip = within(parakeet).getByRole('tooltip', { hidden: true });
     expect(tip).toHaveTextContent('Affidabilità ~97%');
     expect(tip).toHaveTextContent('non misurato da CodexVTT');
-    expect(within(parakeet).getByText(/by NVIDIA, licensed under CC-BY-4\.0/)).toBeInTheDocument();
+    expect(tip).toHaveTextContent('by NVIDIA, licensed under CC-BY-4.0');
 
     const base = screen.getByRole('listitem', { name: 'Base' });
-    expect(within(base).getByText(/Trascrizione: Whisper/)).toBeInTheDocument();
     expect(within(base).getByRole('tooltip', { hidden: true })).toHaveTextContent('Affidabilità non ancora misurata');
     expect(within(base).queryByText('Anteprima')).not.toBeInTheDocument();
 
     const canary = screen.getByRole('listitem', { name: 'Canary 1B v2 (int8)' });
-    expect(within(canary).getByText(/richiede di scegliere la lingua/)).toBeInTheDocument();
+    expect(within(canary).getByRole('tooltip', { hidden: true })).toHaveTextContent('richiede di scegliere la lingua');
   });
 
   it('un modello che non rileva la lingua non parte con «Rilevamento automatico»', async () => {

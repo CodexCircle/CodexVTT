@@ -1,20 +1,16 @@
 import { useId, useState } from 'react';
 import type { ModelInfo } from '../bridge/protocol';
 import { useI18n } from '../i18n/i18n';
-import type { CodexVttState } from '../state/useCodexVtt';
 
 /**
- * «i» in alto a destra nella scheda del modello: core, RAM, scheda video e memoria video del PC, requisiti del modello
- * e affidabilità. Il suggerimento si apre al passaggio del mouse e al focus da tastiera (Esc lo chiude) ed è legato al
+ * «i» in alto a destra nella scheda del modello: informazioni sul modello (formato, licenza, provenienza), requisiti
+ * e affidabilità. Le caratteristiche del PC stanno già nel riquadro «Il tuo PC». Il suggerimento si apre al passaggio del mouse e al focus da tastiera (Esc lo chiude) ed è legato al
  * pulsante con aria-describedby.
  */
-export function ModelInfoTip({ app, model }: { app: CodexVttState; model: ModelInfo }) {
-  const { t, formatBytes, formatMemory } = useI18n();
+export function ModelInfoTip({ model }: { model: ModelInfo }) {
+  const { t, formatBytes } = useI18n();
   const [open, setOpen] = useState(false);
   const id = useId();
-  const hw = app.system?.hardware;
-  const usesGpu = Boolean(hw?.gpuAcceleration) && model.engine === 'whisper';
-  const gpus = hw?.gpus ?? [];
   const accuracy = model.accuracy;
 
   return (
@@ -33,23 +29,13 @@ export function ModelInfoTip({ app, model }: { app: CodexVttState; model: ModelI
         <span aria-hidden="true">i</span>
       </button>
       <span role="tooltip" id={id} className="infotip__bubble" data-open={open}>
-        {hw && (
-          <>
-            <strong>{t('infoThisPc')}</strong>
-            <span>{t('infoCores', { cores: hw.logicalCores })}</span>
-            <span>{t('infoRam', { total: formatMemory(hw.totalMemoryBytes) })}</span>
-            <span>{gpus.length > 0 ? t('infoGpu', { gpu: gpus.join(', ') }) : t('infoGpuNone')}</span>
-            {gpus.length > 0 && (
-              <>
-                <span>{usesGpu ? t('infoGpuUsed') : t('infoGpuNotUsed')}</span>
-                <span>{hw.gpuVramBytes ? t('infoVram', { vram: formatBytes(hw.gpuVramBytes) }) : t('infoVramUnknown')}</span>
-              </>
-            )}
-          </>
-        )}
+        <strong>{t('infoAbout')}</strong>
+        <span>{t('infoQuantization', { quantization: model.quantization })}</span>
+        <span>{t('infoLicense', { license: model.license })}</span>
+        {model.attribution && <span>{model.attribution}</span>}
+        {model.requiresLanguage && <span>{t('requiresLanguageNote')}</span>}
         <strong>{t('infoRequirements')}</strong>
         <span>{t('infoNeedRam', { ram: formatBytes(model.ramRequiredBytes) })}</span>
-        <span>{t('infoNeedDisk', { size: formatBytes(model.sizeBytes) })}</span>
         <strong>{t('infoReliability')}</strong>
         <span>
           {accuracy

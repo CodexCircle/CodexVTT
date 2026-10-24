@@ -89,25 +89,14 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
                   </span>
                 )}
                 {selected && <span className="badge">{t('inUse')}</span>}
+                {app.system?.hardware.gpuAcceleration && m.engine === 'whisper' && (
+                  <span className="badge" title={t('gpuBadgeNote')}>
+                    {t('gpuBadge')}
+                  </span>
+                )}
                 <span className={`state state--${m.state}`}>{t(`state_${m.state}` as MessageKey)}</span>
               </div>
-              <ModelInfoTip app={app} model={m} />
-              <div className="model__meta">
-                {t('modelMetaShort', { size: formatBytes(m.sizeBytes), quantization: m.quantization, license: m.license })}
-                {m.requiresLanguage && ` · ${t('requiresLanguageNote')}`}
-              </div>
-              <ul className="model__engines" aria-label={t('enginesTitle')}>
-                <li>
-                  {t('engineTranscription', {
-                    engine: t(app.system?.hardware.gpuAcceleration && m.engine === 'whisper' ? 'engineRuntimeGpu' : 'engineRuntimeCpu', {
-                      engine: engineName(m.engine),
-                    }),
-                  })}
-                </li>
-                <li>{t('engineSpellcheck')}</li>
-                <li>{t('enginePunctuation')}</li>
-              </ul>
-              {m.attribution && <div className="model__attribution muted">{m.attribution}</div>}
+              <ModelInfoTip model={m} />
               {m.issues.length > 0 && <div className="model__issues">{t('warning', { issues: issues(m) })}</div>}
               {download && (
                 <div className="download">
@@ -126,11 +115,16 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
                 </div>
               )}
               <div className="model__actions">
-                {m.state === 'ready' && !selected && (
-                  <button type="button" onClick={() => void app.selectModel(m.id)}>
-                    {t('useModel')}
-                  </button>
-                )}
+                {m.state === 'ready' &&
+                  (selected ? (
+                    <button type="button" disabled>
+                      {t('modelInUse')}
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => void app.selectModel(m.id)}>
+                      {t('useModel')}
+                    </button>
+                  ))}
                 {m.state === 'notInstalled' && m.downloadable && (
                   <button type="button" onClick={() => setConfirming(m)}>
                     {t('download')}
@@ -152,7 +146,7 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
                   </button>
                 )}
                 {m.state !== 'notInstalled' && m.state !== 'downloading' && m.state !== 'verifying' && (
-                  <button type="button" className="secondary" onClick={() => setRemoving(m)}>
+                  <button type="button" className="danger" onClick={() => setRemoving(m)}>
                     {t('remove')}
                   </button>
                 )}
@@ -166,6 +160,7 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
         <ConfirmDialog
           title={t('removeTitle', { model: removing.displayName })}
           confirmLabel={t('remove')}
+          danger
           onConfirm={() => {
             void app.removeModel(removing.id);
             setRemoving(undefined);
@@ -193,10 +188,6 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
       )}
     </section>
   );
-}
-
-function engineName(engine: string): string {
-  return engine === 'whisper' ? 'Whisper' : engine.startsWith('sherpa-') ? 'sherpa-onnx' : engine;
 }
 
 /** Peso del modello da 1 a 5 (scala logaritmica, da ~75 MB a ~3 GB) per il misuratore della scheda. */

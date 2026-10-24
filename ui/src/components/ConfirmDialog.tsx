@@ -7,12 +7,15 @@ export function ConfirmDialog({
   confirmLabel,
   onConfirm,
   onCancel,
+  danger = false,
   children,
 }: {
   title: string;
   confirmLabel: string;
   onConfirm: () => void;
   onCancel: () => void;
+  /** Azione che distrugge dati (rimozione): il pulsante di conferma è rosso. */
+  danger?: boolean;
   children: ReactNode;
 }) {
   const { t } = useI18n();
@@ -30,7 +33,7 @@ export function ConfirmDialog({
         <h3 id="confirm-title">{title}</h3>
         {children}
         <div className="toolbar">
-          <button type="button" className="primary" autoFocus onClick={onConfirm}>
+          <button type="button" className={danger ? 'danger' : 'primary'} autoFocus onClick={onConfirm}>
             {confirmLabel}
           </button>
           <button type="button" className="secondary" onClick={onCancel}>
