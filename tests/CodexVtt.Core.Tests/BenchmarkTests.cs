@@ -194,7 +194,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
         var events = new List<BenchmarkProgress>();
         _runner.Progress += events.Add;
 
-        var outcomes = await _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", 4, CancellationToken.None);
+        var outcomes = await _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", 4, null, CancellationToken.None);
 
         Assert.Equal(["base", "small"], outcomes.Select(o => o.ModelId));
         Assert.All(outcomes, o => Assert.Equal("done", o.Phase));
@@ -215,7 +215,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
         _engine.Delay = TimeSpan.FromMilliseconds(300);
         var running = _service.Start(Audio(2), "base", new TranscriptionOptions("it"));
 
-        var error = await Assert.ThrowsAsync<CodexVttException>(() => _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, CancellationToken.None));
+        var error = await Assert.ThrowsAsync<CodexVttException>(() => _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, null, CancellationToken.None));
         Assert.Equal(ErrorCodes.TranscriptionBusy, error.Code);
         Assert.False(_runner.Running);
         _service.Cancel(running.JobId);
@@ -223,7 +223,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
             await Task.Delay(10);
 
         _engine.Delay = TimeSpan.FromMilliseconds(150);
-        var test = _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, CancellationToken.None);
+        var test = _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
         await Task.Delay(40);
         Assert.True(_runner.Running);
         var other = Assert.Throws<CodexVttException>(() => _service.Start(Audio(2), "base", new TranscriptionOptions("it")));
@@ -241,7 +241,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
             if (p.Phase == "done" && p.ModelId == "base") cts.Cancel();
         };
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, null, cts.Token));
 
         Assert.False(_runner.Running);
         Assert.Equal(["base"], _results.Read().Entries.Select(e => e.ModelId));
@@ -253,7 +253,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
         await InstallAsync();
         _engine.FailFor = "base";
 
-        var outcomes = await _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, CancellationToken.None);
+        var outcomes = await _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
 
         Assert.Equal("failed", outcomes[0].Phase);
         Assert.Equal(ErrorCodes.TranscriptionFailed, outcomes[0].ErrorCode);
@@ -266,9 +266,27 @@ public sealed class BenchmarkRunnerTests : IDisposable
     {
         await _models.ImportAsync(_dir.File("base.bin", BaseContent));
 
-        var outcomes = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, CancellationToken.None);
+        var outcomes = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
 
         Assert.Equal("base", Assert.Single(outcomes).ModelId);
+    }
+
+    [Fact]
+    public async Task Accuracy_is_measured_against_the_reference_text_only_when_there_is_one()
+    {
+        await _models.ImportAsync(_dir.File("base.bin", BaseContent));
+
+        // Un secondo di audio sta in una sola finestra: il motore di prova dice «testo» una volta sola (con più finestre lo ripeterebbe).
+        // Il motore di prova dice sempre «testo»: contro «Testo.» è identico, contro «testo altro» manca una parola su due.
+        var exact = await _runner.RunAsync(Audio(1), 1, "pc-1", "2.0.0", "it", null, "Testo.", CancellationToken.None);
+        Assert.Equal(100, Assert.Single(exact).Accuracy);
+        Assert.Equal(100, Assert.Single(_results.Read().Entries).Accuracy);
+
+        var half = await _runner.RunAsync(Audio(1), 1, "pc-1", "2.0.0", "it", null, "testo altro", CancellationToken.None);
+        Assert.Equal(50, Assert.Single(half).Accuracy);
+
+        var none = await _runner.RunAsync(Audio(1), 1, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
+        Assert.Null(Assert.Single(none).Accuracy);
     }
 
     [Fact]
@@ -276,7 +294,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
     {
         await _models.ImportAsync(_dir.File("base.bin", BaseContent));
 
-        var outcomes = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, CancellationToken.None);
+        var outcomes = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
 
         Assert.Single(outcomes);
         Assert.Equal(2, _engine.Sessions); // prova a vuoto + misura
@@ -318,5 +336,47 @@ public sealed class BenchmarkRunnerTests : IDisposable
 
             public ValueTask DisposeAsync() => ValueTask.CompletedTask;
         }
+    }
+}
+
+public class BenchmarkRecommenderTests
+{
+    private static (BenchmarkEntry Entry, ModelDescriptor Model) Measured(string id, double speed, double? accuracy, int quality = 1, bool preview = false)
+    {
+        var model = TestData.Catalog(models: [(id, TestData.Bytes(id, 100), 2, 2, 0)]).Models[0] with { QualityRank = quality, Preview = preview };
+        return (new BenchmarkEntry(id, "x", "Cpu", null, 60, 2, speed, DateTimeOffset.UtcNow, "2.0.0", accuracy), model);
+    }
+
+    [Fact]
+    public void Picks_the_most_reliable_model_that_keeps_up_with_real_time()
+    {
+        var picked = BenchmarkRecommender.Pick([Measured("tiny", 40, 80), Measured("base", 20, 90), Measured("large", 0.5, 97)]);
+
+        Assert.Equal("base", picked!.Model.Id);
+        Assert.True(picked.ByAccuracy);
+    }
+
+    [Fact]
+    public void Within_half_a_point_of_reliability_the_faster_model_wins()
+    {
+        var picked = BenchmarkRecommender.Pick([Measured("base", 20, 93.8), Measured("small", 8, 94.0)]);
+
+        Assert.Equal("base", picked!.Model.Id);
+    }
+
+    [Fact]
+    public void Without_reliability_the_higher_quality_usable_model_wins_and_previews_are_never_picked()
+    {
+        var picked = BenchmarkRecommender.Pick([Measured("tiny", 40, null, quality: 1), Measured("small", 5, null, quality: 3), Measured("parakeet", 30, null, quality: 9, preview: true)]);
+
+        Assert.Equal("small", picked!.Model.Id);
+        Assert.False(picked.ByAccuracy);
+    }
+
+    [Fact]
+    public void When_nothing_keeps_up_with_real_time_the_fastest_is_picked_and_with_no_measures_nothing()
+    {
+        Assert.Equal("tiny", BenchmarkRecommender.Pick([Measured("tiny", 0.8, 70), Measured("base", 0.4, 90)])!.Model.Id);
+        Assert.Null(BenchmarkRecommender.Pick([]));
     }
 }

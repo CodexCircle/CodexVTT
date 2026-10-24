@@ -249,6 +249,8 @@ export interface BenchmarkEntry {
   /** Secondi di audio per secondo reale dopo il caricamento (4 = quattro volte il tempo reale). */
   speed: number;
   measuredAt: string;
+  /** Affidabilità in percentuale (100 meno l'errore sulle parole) contro il testo del file ufficiale; assente con un file proprio. */
+  accuracy?: number;
   stale: BenchmarkStale;
 }
 
@@ -264,6 +266,7 @@ export interface BenchmarkProgress {
   phase: 'running' | 'done' | 'failed';
   speed?: number;
   loadSeconds?: number;
+  accuracy?: number;
   errorCode?: string;
 }
 
@@ -304,6 +307,8 @@ export interface AppSettings {
   /** Mascotte scelta; assente = Tina. */
   mascot?: MascotCharacter | null;
   historyDirectory?: string | null;
+  /** Quando la cartella scelta ha superato il test (ISO 8601); assente = mai testata. Lo imposta solo il test. */
+  historyDirectoryTestedAt?: string | null;
   /** Quanta CPU possono usare i motori, in percentuale dei core (10-100); assente = 100, nessun limite. Vale dalla prossima trascrizione. */
   cpuLimitPercent?: number;
   /** Usa la scheda video (Vulkan) per Whisper quando il PC la supporta; assente = sì. Si applica al prossimo avvio. */

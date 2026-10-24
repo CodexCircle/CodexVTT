@@ -31,6 +31,12 @@ public sealed record AppSettings
     public string? HistoryDirectory { get; init; }
 
     /// <summary>
+    /// Quando la cartella scelta in <see cref="HistoryDirectory"/> ha superato il test di scrittura, lettura e cancellazione.
+    /// Resta finché la cartella non cambia o un salvataggio nella cronologia non fallisce; null = mai testata.
+    /// </summary>
+    public DateTimeOffset? HistoryDirectoryTestedAt { get; init; }
+
+    /// <summary>
     /// Controlla da solo, all'avvio, se su GitHub c'è una versione più recente (ADR-0008). Di default no:
     /// senza questa scelta l'app non contatta mai GitHub, se non quando si preme "Controlla aggiornamenti".
     /// </summary>

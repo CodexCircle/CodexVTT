@@ -130,6 +130,8 @@ function Shell({ app }: { app: CodexVttState }) {
               setSelection({ kind: 'recent', id });
             }}
             onNew={() => setSelection(null)}
+            onStartQueue={() => void app.startQueue(language)}
+            startDisabled={needsLanguage}
             onAddFiles={() => {
               void app.addToQueue();
               setSelection(null);

@@ -1,12 +1,13 @@
 using System.Diagnostics;
 using CodexVtt.Core.Errors;
+using CodexVtt.Core.Evaluation;
 using CodexVtt.Core.Models;
 using CodexVtt.Core.Transcription;
 
 namespace CodexVtt.Core.Benchmark;
 
 /// <summary>Esito (o avanzamento) del test su un modello. <c>Phase</c>: running, done, failed.</summary>
-public sealed record BenchmarkProgress(string ModelId, int Index, int Total, string Phase, double? Speed = null, double? LoadSeconds = null, string? ErrorCode = null);
+public sealed record BenchmarkProgress(string ModelId, int Index, int Total, string Phase, double? Speed = null, double? LoadSeconds = null, string? ErrorCode = null, double? Accuracy = null);
 
 /// <summary>
 /// Test bench: trascrive lo stesso file di riferimento con ogni modello pronto e salva tempo fisso e velocità.
@@ -30,6 +31,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
         string appVersion,
         string language,
         int? threads,
+        string? referenceText,
         CancellationToken ct)
     {
         if (transcription.Current is not null || Interlocked.CompareExchange(ref _running, 1, 0) != 0)
@@ -44,7 +46,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
             if (ready.Count > 0)
             {
                 Publish(new BenchmarkProgress(ready[0].Id, 0, ready.Count, "running"));
-                var warmUp = await MeasureAsync(ready[0], 0, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, ct, record: false).ConfigureAwait(false);
+                var warmUp = await MeasureAsync(ready[0], 0, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, referenceText, record: false, ct).ConfigureAwait(false);
                 if (warmUp.ErrorCode == ErrorCodes.TranscriptionBusy)
                     return outcomes;
             }
@@ -55,7 +57,7 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
                 var model = ready[i];
                 if (i > 0)
                     Publish(new BenchmarkProgress(model.Id, i, ready.Count, "running"));
-                var outcome = await MeasureAsync(model, i, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, ct).ConfigureAwait(false);
+                var outcome = await MeasureAsync(model, i, ready.Count, audioId, audioSeconds, fingerprint, appVersion, language, threads, referenceText, record: true, ct).ConfigureAwait(false);
                 outcomes.Add(outcome);
                 Publish(outcome);
                 // Se nel frattempo è partita un'altra trascrizione il test si ferma: non deve rubarle il posto.
@@ -81,8 +83,9 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
         string appVersion,
         string language,
         int? threads,
-        CancellationToken ct,
-        bool record = true)
+        string? referenceText,
+        bool record,
+        CancellationToken ct)
     {
         var clock = Stopwatch.StartNew();
         double? firstWork = null;
@@ -105,8 +108,10 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
             var (load, speed) = measured.Value;
             if (!record)
                 return new BenchmarkProgress(model.Id, index, total, "running");
-            store.Record(fingerprint, new BenchmarkEntry(model.Id, BenchmarkStore.ModelIdentity(model), result.Model.Runtime, threads, audioSeconds, load, speed, DateTimeOffset.UtcNow, appVersion));
-            return new BenchmarkProgress(model.Id, index, total, "done", speed, load);
+            // Affidabilità: solo se c'è un testo con cui confrontare (file ufficiale), come 100 meno il WER in percentuale.
+            double? accuracy = referenceText is null ? null : Math.Round(Math.Clamp((1 - WordErrorRate.Compute(referenceText, result.Text)) * 100, 0, 100), 1);
+            store.Record(fingerprint, new BenchmarkEntry(model.Id, BenchmarkStore.ModelIdentity(model), result.Model.Runtime, threads, audioSeconds, load, speed, DateTimeOffset.UtcNow, appVersion, accuracy));
+            return new BenchmarkProgress(model.Id, index, total, "done", speed, load, Accuracy: accuracy);
         }
         catch (CodexVttException ex)
         {

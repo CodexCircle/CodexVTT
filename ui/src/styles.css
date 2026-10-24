@@ -1627,6 +1627,7 @@ select.filter {
   margin: 14px 0;
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-auto-rows: 1fr; /* schede tutte della stessa altezza */
   gap: 14px;
 }
 
@@ -2750,4 +2751,26 @@ input[type='text'] {
 
 .bench progress {
   width: 100%;
+}
+
+/* Azioni che distruggono dati (rimozione di un modello) */
+button.danger {
+  background: var(--err);
+  border-color: var(--err);
+  color: #fff;
+}
+
+button.danger:hover:not(:disabled) {
+  filter: brightness(0.88);
+}
+
+button.danger:focus-visible {
+  outline: 2px solid var(--err);
+  outline-offset: 2px;
+}
+
+.folder-ok {
+  margin-left: 6px;
+  color: var(--ok-text);
+  font-weight: 700;
 }

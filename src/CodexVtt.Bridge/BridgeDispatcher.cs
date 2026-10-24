@@ -236,11 +236,35 @@ public sealed partial class BridgeDispatcher : IDisposable
     {
         var hardware = _hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu);
         var recommendation = ModelSelector.Recommend(hardware, _models.Catalog, _models.InstalledIds());
+
+        // Con misure valide del Test bench il consiglio viene da quelle, non dalle regole sull'hardware.
+        var (fingerprint, version) = BenchmarkContext();
+        var measured = _benchmarkResults.Views(fingerprint, InstalledIdentity, version)
+            .Where(v => v.IsValid && _models.Catalog.Find(v.Entry.ModelId) is not null)
+            .Select(v => (v.Entry, Model: _models.Catalog.Find(v.Entry.ModelId)!));
+        if (BenchmarkRecommender.Pick(measured) is { } picked)
+        {
+            var args = new List<(string, string)>
+            {
+                ("modelId", picked.Model.Id),
+                ("model", picked.Model.DisplayName),
+                ("speed", picked.Entry.Speed.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)),
+            };
+            if (picked.ByAccuracy && picked.Entry.Accuracy is { } accuracy)
+                args.Add(("accuracy", accuracy.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)));
+            var reasons = recommendation.Reasons
+                .Where(r => r.Code != SelectionReason.Recommended && r.Code != SelectionReason.NoneCompatible)
+                .Append(new SelectionReason(SelectionReason.BenchmarkRecommended, args.ToDictionary(a => a.Item1, a => a.Item2)))
+                .ToList();
+            return new { RecommendedId = (string?)picked.Model.Id, Reasons = (IReadOnlyList<SelectionReason>)reasons, Hardware = hardware, Basis = "benchmark" };
+        }
+
         return new
         {
             RecommendedId = recommendation.Recommended?.Id,
             recommendation.Reasons,
             Hardware = hardware,
+            Basis = "hardware",
         };
     }
 
@@ -439,8 +463,16 @@ public sealed partial class BridgeDispatcher : IDisposable
         }
     }
 
-    private AppSettings SaveSettings(AppSettings settings)
+    private AppSettings SaveSettings(AppSettings settings, bool trustTestedAt = false)
     {
+        if (!trustTestedAt)
+        {
+            // Il «testata» lo decide solo il test: dal client resta quello già salvato, e sparisce se la cartella cambia.
+            var current = _settings.Load();
+            var same = string.Equals(current.HistoryDirectory, settings.HistoryDirectory, StringComparison.OrdinalIgnoreCase);
+            settings = settings with { HistoryDirectoryTestedAt = same ? current.HistoryDirectoryTestedAt : null };
+        }
+
         if (settings.SelectedModelId is { } id)
             RequireModel(id);
         if (!CpuLimit.IsValid(settings.CpuLimitPercent))
@@ -583,7 +615,7 @@ public sealed partial class BridgeDispatcher : IDisposable
         if (!test.Ok)
             throw new CodexVttException(ErrorCodes.FolderTestFailed, $"Cartella non utilizzabile: {test.Error}.",
                 new Dictionary<string, string> { ["reason"] = test.Error ?? "" });
-        var settings = SaveSettings(_settings.Load() with { HistoryDirectory = directory });
+        var settings = SaveSettings(_settings.Load() with { HistoryDirectory = directory, HistoryDirectoryTestedAt = DateTimeOffset.UtcNow }, trustTestedAt: true);
         Emit("history.changed", null);
         return settings;
     }
@@ -633,6 +665,9 @@ public sealed partial class BridgeDispatcher : IDisposable
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     LogHistorySaveFailed(ex);
+                    // La cartella non vale più come testata: la spunta verde non deve restare su una cartella che non scrive.
+                    if (_settings.Load() is { HistoryDirectoryTestedAt: not null } tested)
+                        _settings.Save(tested with { HistoryDirectoryTestedAt = null });
                     var code = TryRecover(job.Result!) ? ErrorCodes.HistoryFolderBlocked : ErrorCodes.HistorySaveFailed;
                     Emit("history.saveFailed", new { job.JobId, Error = new BridgeError(code, "Impossibile salvare nella cronologia.") });
                 }

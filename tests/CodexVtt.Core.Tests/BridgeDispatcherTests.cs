@@ -229,6 +229,13 @@ public sealed class BridgeDispatcherTests : IDisposable
 
         Assert.Equal(custom, saved.GetProperty("historyDirectory").GetString());
         Assert.Equal(custom, Ok(await Call("history.list")).GetProperty("directory").GetString());
+        // La spunta «cartella testata» la mette solo il test: il client non può né toglierla né inventarla per un'altra cartella.
+        Assert.NotEqual(JsonValueKind.Null, saved.GetProperty("historyDirectoryTestedAt").ValueKind);
+        var kept = Ok(await Call("settings.set", new { historyDirectory = custom }));
+        Assert.NotEqual(JsonValueKind.Null, kept.GetProperty("historyDirectoryTestedAt").ValueKind);
+        var other = Ok(await Call("settings.set", new { historyDirectory = Path.Combine(_dir.Path, "altra"), historyDirectoryTestedAt = DateTimeOffset.UtcNow }));
+        Assert.True(!other.TryGetProperty("historyDirectoryTestedAt", out var cleared) || cleared.ValueKind == JsonValueKind.Null);
+        Ok(await Call("settings.set", new { historyDirectory = custom }));
         Assert.Equal(ErrorCodes.InvalidRequest, ErrorCode(await Call("settings.set", new { uiLanguage = "de" })));
         Assert.Equal(ErrorCodes.InvalidRequest, ErrorCode(await Call("settings.set", new { historyDirectory = "relativa" })));
         Assert.Equal("en", Ok(await Call("settings.set", new { uiLanguage = "en" })).GetProperty("uiLanguage").GetString());

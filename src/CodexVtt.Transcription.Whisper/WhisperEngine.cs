@@ -66,19 +66,26 @@ public sealed class WhisperEngine : ITranscriptionEngine
     }
 
     /// <summary>
-    /// Nome del runtime mostrato all'utente. «Vulkan (GPU)» solo se whisper.cpp ha davvero scelto la scheda video;
-    /// se il runtime GPU è caricato ma non ha trovato dispositivi, il lavoro gira sulla CPU e lo diciamo.
+    /// Nome del runtime mostrato all'utente. Con il runtime Vulkan caricato e la scheda richiesta vale «Vulkan (GPU)», a meno che
+    /// whisper.cpp dica di non aver trovato o inizializzato nessuna scheda (allora il lavoro gira sulla CPU e lo diciamo).
+    /// Non si pretende una riga di log precisa per dichiarare la GPU: il testo dei messaggi cambia tra le versioni di
+    /// whisper.cpp e un riscontro mancante faceva comparire «Cpu» anche con la scheda in uso (RTX 3060 su 2.1.1).
     /// </summary>
     public static string RuntimeLabel(string loaded, bool gpuRequested, IReadOnlyList<string> messages)
     {
         if (!string.Equals(loaded, "Vulkan", StringComparison.OrdinalIgnoreCase))
             return loaded;
+        if (!gpuRequested)
+            return "Cpu";
         string[] copy;
         lock (messages)
             copy = [.. messages];
+        var failed = copy.Any(m => m.Contains("no GPU found", StringComparison.OrdinalIgnoreCase)
+                                   || m.Contains("failed to initialize GPU", StringComparison.OrdinalIgnoreCase)
+                                   || m.Contains("failed to init GPU", StringComparison.OrdinalIgnoreCase));
         var usedGpu = copy.Any(m => m.Contains("whisper_backend_init_gpu", StringComparison.Ordinal)
                                    && m.Contains("using ", StringComparison.Ordinal) && m.Contains(" backend", StringComparison.Ordinal));
-        return gpuRequested && usedGpu ? "Vulkan (GPU)" : "Cpu";
+        return usedGpu || !failed ? "Vulkan (GPU)" : "Cpu";
     }
 
     /// <summary>Ordine esplicito dei runtime: GPU (se richiesta e possibile), CPU standard, poi CPU senza AVX.</summary>

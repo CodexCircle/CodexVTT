@@ -75,6 +75,7 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
               <th scope="col">{t('benchColRuntime')}</th>
               <th scope="col">{t('benchColSpeed')}</th>
               <th scope="col">{t('benchColFixed')}</th>
+              <th scope="col">{t('benchColAccuracy')}</th>
               <th scope="col">{t('benchColDate')}</th>
               <th scope="col">{t('benchColStatus')}</th>
             </tr>
@@ -86,6 +87,7 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
                 <td>{e.runtime}</td>
                 <td>{t('benchSpeed', { speed: number(e.speed) })}</td>
                 <td>{t('benchFixed', { seconds: number(e.loadSeconds) })}</td>
+                <td>{e.accuracy === undefined ? <span title={t('benchAccuracyNone')}>—</span> : `${number(e.accuracy)}%`}</td>
                 <td>{formatShortDate(e.measuredAt)}</td>
                 <td>{e.stale === 'none' ? t('benchValid') : t(`benchStale_${e.stale}` as MessageKey)}</td>
               </tr>

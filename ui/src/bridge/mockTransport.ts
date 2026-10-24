@@ -106,7 +106,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
 
   let settings: AppSettings = { language: 'auto', showMascot: true, exportIncludeHeader: false, uiLanguage: options.uiLanguage };
   const benchEntries = new Map<string, BenchmarkEntry>();
-  const benchEntry = (modelId: string, speed: number): BenchmarkEntry => ({
+  const benchEntry = (modelId: string, speed: number, accuracy?: number): BenchmarkEntry => ({
     modelId,
     runtime: 'Cpu',
     threads: 8,
@@ -114,6 +114,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
     loadSeconds: 2,
     speed,
     measuredAt: '2026-10-24T10:00:00Z',
+    ...(accuracy === undefined ? {} : { accuracy }),
     stale: 'none',
   });
   for (const [id, speed] of Object.entries(options.benchmark ?? {})) benchEntries.set(id, benchEntry(id, speed));
@@ -575,8 +576,10 @@ export function createMockTransport(options: MockOptions = {}): Transport {
           event('benchmark.progress', { modelId: m.id, index: i, total: ready.length, phase: 'running' });
           later(() => {
             const speed = Math.round((64 / m.relativeCost) * 10) / 10;
-            benchEntries.set(m.id, benchEntry(m.id, speed));
-            const done: BenchmarkProgress = { modelId: m.id, index: i, total: ready.length, phase: 'done', speed, loadSeconds: 2 };
+            // Solo con il file ufficiale c'è un testo di riferimento, quindi un'affidabilità misurata.
+            const accuracy = payload?.useReference ? Math.round((100 - m.relativeCost * 2) * 10) / 10 : undefined;
+            benchEntries.set(m.id, benchEntry(m.id, speed, accuracy));
+            const done: BenchmarkProgress = { modelId: m.id, index: i, total: ready.length, phase: 'done', speed, loadSeconds: 2, ...(accuracy === undefined ? {} : { accuracy }) };
             outcomes.push(done);
             event('benchmark.progress', done);
             step(i + 1);
@@ -600,7 +603,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
       case 'history.setFolder':
         if (options.folderTestError) throw { code: 'folder_test_failed', message: options.folderTestError };
         historyDirectory = String(payload.directory);
-        settings = { ...settings, historyDirectory };
+        settings = { ...settings, historyDirectory, historyDirectoryTestedAt: '2026-10-24T16:00:00.000Z' };
         return settings;
       default:
         throw { code: 'invalid_request', message: `Comando sconosciuto: ${request.type}` };

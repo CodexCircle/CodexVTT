@@ -136,7 +136,11 @@ export function useCodexVtt(client: BridgeClient) {
     const offs = [
       client.on('models.changed', () => void refreshModels().catch(report)),
       client.on('history.changed', () => void refreshHistory().catch(report)),
-      client.on('history.saveFailed', ({ error: e }) => setError(e)),
+      client.on('history.saveFailed', ({ error: e }) => {
+        setError(e);
+        // Il core toglie la spunta «cartella testata» quando il salvataggio fallisce.
+        void client.call('settings.get').then(setSettings).catch(report);
+      }),
       client.on('models.downloadProgress', (p) => setDownloads((d) => ({ ...d, [p.modelId]: p }))),
       client.on('models.downloadCompleted', (m) => {
         setDownloads(({ [m.id]: _, ...rest }) => rest);
@@ -172,6 +176,8 @@ export function useCodexVtt(client: BridgeClient) {
       client.on('benchmark.progress', (p) => setBenchmarkProgress(p)),
       client.on('benchmark.completed', ({ snapshot }) => {
         setBenchmark(snapshot);
+        // Il modello consigliato segue le misure appena fatte.
+        void refreshModels().catch(report);
         setBenchmarkProgress(undefined);
         setNotice({ key: 'benchDone' });
       }),
