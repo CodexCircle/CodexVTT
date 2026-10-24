@@ -39,6 +39,15 @@ public class BenchmarkClipsTests
     }
 
     [Fact]
+    public void Every_clean_clip_has_a_noisy_twin_so_both_scenarios_measure_the_same_clips()
+    {
+        var clean = BenchmarkClips.All.Where(c => !c.IsDerived).ToList();
+        var noisy = BenchmarkClips.All.Where(c => c.IsDerived).ToList();
+        Assert.Equal(clean.Count, noisy.Count);
+        Assert.Equal(clean.Select(c => c.Id).Order(), noisy.Select(c => c.NoiseSourceId!).Order());
+    }
+
+    [Fact]
     public void Downloads_lists_each_file_once_even_when_a_noisy_clip_shares_it()
     {
         Assert.Equal(BenchmarkClips.All.Count(c => !c.IsDerived), BenchmarkClips.Downloads().Count);

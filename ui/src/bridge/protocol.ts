@@ -255,6 +255,8 @@ export interface BenchmarkEntry {
   accuracy?: number;
   /** Brano ufficiale della misura, la sua lingua (it, en) e la condizione; assenti con un file proprio. */
   clipId?: string;
+  /** Titolo del brano ufficiale, per il dettaglio per brano. */
+  clipTitle?: string;
   language?: string;
   scenario?: BenchmarkScenario;
   stale: BenchmarkStale;

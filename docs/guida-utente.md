@@ -42,7 +42,7 @@ Se il PC ha una scheda video NVIDIA, AMD o Intel con i driver aggiornati, Whispe
 
 In **Modelli → Test bench** puoi misurare i modelli installati su questo PC. Con **«Scarica i brani ufficiali e avvia»** (i file si scaricano una sola volta, solo dopo la tua conferma, e sono di pubblico dominio) ogni modello trascrive brani in **italiano** e in **inglese**, ognuno in due condizioni: **audio pulito** e **audio con rumore** (lo stesso audio con rumore sintetico aggiunto dall'app, sempre uguale). Il testo di ogni brano è noto, quindi l'**affidabilità** è 100 meno l'errore sulle parole.
 
-La tabella dell'affidabilità mostra, per ogni lingua, tre colonne: *Pulito*, *Rumore* e *Media*. La media dà lo stesso peso alle due condizioni. Guarda anche le colonne singole: un modello può essere ottimo sul pulito e peggiorare col rumore. Ogni nuovo test cancella le misure precedenti.
+La tabella dell'affidabilità mostra, per ogni lingua, tre colonne: *Pulito*, *Rumore* e *Media*. La media dà lo stesso peso alle due condizioni. Guarda anche le colonne singole: un modello può essere ottimo sul pulito e peggiorare col rumore. «Pulito» e «Rumore» si calcolano sugli stessi brani, e «Dettaglio per brano» mostra il risultato di ogni modello su ogni brano. Ogni nuovo test cancella le misure precedenti.
 
 In **Home**, sotto la lingua scelta, l'app indica il modello migliore **per quella lingua** secondo il Test bench (più affidabile tra quelli che reggono il tempo reale; a parità, il più veloce). Con «Rilevamento automatico» vale la media delle lingue provate. Con un tuo file la velocità si misura lo stesso, ma non l'affidabilità, perché manca il testo di confronto.
 

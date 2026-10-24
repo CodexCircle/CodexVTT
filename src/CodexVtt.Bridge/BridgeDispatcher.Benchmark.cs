@@ -59,6 +59,7 @@ public sealed partial class BridgeDispatcher
                 v.Entry.MeasuredAt,
                 v.Entry.Accuracy,
                 v.Entry.ClipId,
+                ClipTitle = v.Entry.ClipId is { } clipId ? BenchmarkClips.Find(clipId)?.Title : null,
                 v.Entry.Language,
                 v.Entry.Scenario,
                 Stale = v.Stale,

@@ -60,6 +60,22 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
   const rows = combine(benchmark.entries);
   const languages = [...new Set(benchmark.reliability.map((r) => r.language))].sort();
   const reliabilityOf = (modelId: string, language: string) => benchmark.reliability.find((r) => r.modelId === modelId && r.language === language);
+  // Dettaglio: una riga per modello e brano, con la stessa lettura pulita e con rumore affiancate.
+  const detail = [
+    ...benchmark.entries
+      .filter((e) => e.accuracy !== undefined && e.clipId !== undefined)
+      .reduce((map, e) => {
+        const key = `${e.modelId}|${e.clipId!.replace(/-(clean|noisy)-/, '-')}`;
+        const row = map.get(key) ?? { modelId: e.modelId, clip: e.clipId!.replace(/-(clean|noisy)-/, '-'), title: '', language: e.language ?? '', clean: undefined as number | undefined, noisy: undefined as number | undefined };
+        if (e.scenario === 'noisy') row.noisy = e.accuracy;
+        else {
+          row.clean = e.accuracy;
+          row.title = e.clipTitle ?? row.clip;
+        }
+        return map.set(key, row);
+      }, new Map<string, { modelId: string; clip: string; title: string; language: string; clean?: number; noisy?: number }>())
+      .values(),
+  ].sort((a, b) => a.language.localeCompare(b.language) || a.clip.localeCompare(b.clip) || a.modelId.localeCompare(b.modelId));
   const percent = (value?: number) => (value === undefined ? '—' : `${number(value)}%`);
   // In ogni lingua spicca la media migliore (a parità di arrotondamento, tutte quelle a pari merito).
   const bestOverall = (language: string) =>
@@ -183,6 +199,30 @@ export function BenchPanel({ app }: { app: CodexVttState }) {
                 </tbody>
               </table>
               <p className="muted">{t('benchReliabilityNote')}</p>
+              <details className="bench__detail">
+                <summary>{t('benchDetailTitle')}</summary>
+                <table className="bench__table">
+                  <caption className="sr-only">{t('benchDetailTitle')}</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">{t('benchColClip')}</th>
+                      <th scope="col">{t('benchColModel')}</th>
+                      <th scope="col">{t('benchColClean')}</th>
+                      <th scope="col">{t('benchColNoisy')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detail.map((d) => (
+                      <tr key={`${d.modelId}|${d.clip}`}>
+                        <th scope="row">{d.title || d.clip}</th>
+                        <td>{names.get(d.modelId) ?? d.modelId}</td>
+                        <td>{percent(d.clean)}</td>
+                        <td>{percent(d.noisy)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </details>
             </>
           )}
         </>

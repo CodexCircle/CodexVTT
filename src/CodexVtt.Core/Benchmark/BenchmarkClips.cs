@@ -44,13 +44,10 @@ public static class BenchmarkClips
 
     public static IReadOnlyList<string> Languages { get; } = ["it", "en"];
 
-    public static IReadOnlyList<BenchmarkClip> All { get; } =
+    private static readonly BenchmarkClip[] CleanClips =
     [
         new("it-clean-1", "it", BenchmarkScenario.Clean, BenchmarkReference.Title, BenchmarkReference.FileName, BenchmarkReference.Url,
             BenchmarkReference.SizeBytes, BenchmarkReference.Sha256, BenchmarkReference.ApproximateSeconds, BenchmarkReferenceText.Text),
-        new("it-noisy-1", "it", BenchmarkScenario.Noisy, "Le avventure di Pinocchio, capitolo 6, con rumore", BenchmarkReference.FileName, BenchmarkReference.Url,
-            BenchmarkReference.SizeBytes, BenchmarkReference.Sha256, BenchmarkReference.ApproximateSeconds, BenchmarkReferenceText.Text,
-            NoiseSourceId: "it-clean-1", NoiseSnrDb: NoiseSnrDb),
         new("it-clean-2", "it", BenchmarkScenario.Clean, "Il giornalino di Gian Burrasca, 7 novembre (LibriVox)", "gianburrasca_024_vamba_64kb.mp3",
             "https://archive.org/download/il_giornalino_di_gian_burrasca_0910_librivox1/gianburrasca_024_vamba_64kb.mp3",
             1_611_825, "0e1e58fb0824fdb9974c57f24bfe939ae797fe8762071a741035b110f4d6ca60", 201, BenchmarkClipTexts.GianBurrasca7Novembre),
@@ -63,11 +60,19 @@ public static class BenchmarkClips
         new("en-clean-2", "en", BenchmarkScenario.Clean, "The Wonderful Wizard of Oz, chapter 21 (LibriVox)", "wizardofoz_21_baum_64kb.mp3",
             "https://archive.org/download/wizard_of_oz/wizardofoz_21_baum_64kb.mp3",
             2_673_121, "99e4729c9b77706aeb1b00488d7700c39b882900ea938a5fbb34ac7108919437", 334, BenchmarkClipTexts.WizardOfOzChapter21),
-        new("en-noisy-1", "en", BenchmarkScenario.Noisy, "Unbeaten Tracks in Japan, Letter XXXIV, with noise", "unbeatentracksjapan_41_bird_64kb.mp3",
-            "https://archive.org/download/unbeaten_tracks_japan_ava_librivox/unbeatentracksjapan_41_bird_64kb.mp3",
-            1_801_728, "c45d96a6c69278a2c6c8f2c836f337d5e52228caff25f8aa45c5d436727f3a8f", 225, BenchmarkClipTexts.UnbeatenTracksLetter34,
-            NoiseSourceId: "en-clean-1", NoiseSnrDb: NoiseSnrDb),
     ];
+
+    /// <summary>Tutti i brani: ogni brano pulito ha il suo gemello rumoroso, così le due condizioni misurano gli stessi brani.</summary>
+    public static IReadOnlyList<BenchmarkClip> All { get; } = [.. CleanClips, .. CleanClips.Select(NoisyTwin)];
+
+    private static BenchmarkClip NoisyTwin(BenchmarkClip clean) => clean with
+    {
+        Id = clean.Id.Replace("-clean-", "-noisy-", StringComparison.Ordinal),
+        Scenario = BenchmarkScenario.Noisy,
+        Title = clean.Language == "it" ? $"{clean.Title}, con rumore" : $"{clean.Title}, with noise",
+        NoiseSourceId = clean.Id,
+        NoiseSnrDb = NoiseSnrDb,
+    };
 
     public static BenchmarkClip? Find(string id) => All.FirstOrDefault(c => c.Id == id);
 
