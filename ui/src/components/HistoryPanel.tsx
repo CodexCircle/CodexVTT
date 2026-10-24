@@ -9,7 +9,7 @@ type Filter = 'all' | 'none' | string;
 
 const titleOf = (e: HistoryEntry) => e.title || e.audioFileName;
 
-export function HistoryPanel({ app, onOpened }: { app: CodexVttState; onOpened: () => void }) {
+export function HistoryPanel({ app, onOpened }: { app: CodexVttState; onOpened: (id: string) => void }) {
   const { t, formatDate, formatShortDate, formatDuration } = useI18n();
   const history = app.history;
   const entries = useMemo(() => history?.entries ?? [], [history]);
@@ -60,7 +60,7 @@ export function HistoryPanel({ app, onOpened }: { app: CodexVttState; onOpened: 
 
   const open = async (entry: HistoryEntry) => {
     setMenuFor(undefined);
-    if (await app.openFromHistory(entry.id)) onOpened();
+    if (await app.openFromHistory(entry.id)) onOpened(entry.id);
   };
 
   return (

@@ -1,40 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BridgeClient } from './bridge/client';
+import type { ExportFormat } from './bridge/protocol';
+import { FileList, type Selection } from './components/FileList';
 import { HistoryPanel } from './components/HistoryPanel';
-import { Dock } from './components/Dock';
+import { Icon, type IconName } from './components/Icon';
 import { ModelsPanel } from './components/ModelsPanel';
 import { SettingsPanel } from './components/SettingsPanel';
-import { TranscribePanel } from './components/TranscribePanel';
+import { StartPage } from './components/StartPage';
+import { Workbench } from './components/Workbench';
 import { I18nProvider, resolveLocale, useI18n } from './i18n/i18n';
-import { Logo } from './components/Logo';
 import { useCodexVtt, type CodexVttState } from './state/useCodexVtt';
 
-type Tab = 'transcribe' | 'history' | 'models' | 'settings';
+type Tab = 'home' | 'history' | 'models' | 'settings';
 
 export function App({ client }: { client: BridgeClient }) {
   const app = useCodexVtt(client);
   const locale = resolveLocale(app.settings?.uiLanguage);
-
   const theme = app.settings?.theme;
-  const palette = app.settings?.palette;
 
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  // Tema scelto nelle impostazioni; senza attributo vale quello del sistema (prefers-color-scheme).
+  // Tema scelto nelle impostazioni o con il pulsante in alto; senza attributo vale quello del sistema (prefers-color-scheme).
   useEffect(() => {
     const root = document.documentElement;
     if (theme) root.dataset.theme = theme;
     else delete root.dataset.theme;
   }, [theme]);
-
-  // Tema di colore: senza attributo vale quello principale (Sabbia).
-  useEffect(() => {
-    const root = document.documentElement;
-    if (palette && palette !== 'sabbia') root.dataset.palette = palette;
-    else delete root.dataset.palette;
-  }, [palette]);
 
   return (
     <I18nProvider locale={locale}>
@@ -43,108 +36,223 @@ export function App({ client }: { client: BridgeClient }) {
   );
 }
 
+const systemPrefersDark = () => typeof window.matchMedia === 'function' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+
 function Shell({ app }: { app: CodexVttState }) {
   const { t, describeError } = useI18n();
-  const [tab, setTab] = useState<Tab>('transcribe');
+  const [tab, setTab] = useState<Tab>('home');
+  const [selection, setSelection] = useState<Selection>(null);
+  const [language, setLanguage] = useState(app.settings?.language ?? 'auto');
+  const [dirty, setDirty] = useState(false);
+  const [toast, setToast] = useState<string>();
   const error = app.error ? describeError(app.error.code) : undefined;
 
-  const tabs: { id: Tab; label: string; icon: string }[] = [
-    {
-      id: 'transcribe',
-      label: t('tabTranscribe'),
-      icon: 'M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5 11a7 7 0 0 0 14 0M12 18v3',
-    },
-    { id: 'history', label: t('tabHistory'), icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' },
-    { id: 'models', label: t('tabModels'), icon: 'M12 2.5 3.5 7v10l8.5 4.5 8.5-4.5V7zM3.5 7l8.5 4.5L20.5 7M12 11.5v10' },
+  useEffect(() => {
+    if (app.settings?.language) setLanguage(app.settings.language);
+  }, [app.settings?.language]);
+
+  // Una trascrizione appena conclusa si apre da sola; quelle della coda restano a chi le sceglie nell'elenco.
+  useEffect(() => {
+    if (app.open?.jobId) setSelection({ kind: 'open' });
+  }, [app.open]);
+
+  const running = Boolean(app.jobId) || app.progress?.status === 'queued' || app.queueRunning;
+  const paused = running && app.progress?.status === 'paused';
+  const needsLanguage = Boolean(app.activeModel?.requiresLanguage) && language === 'auto';
+  const editing = tab === 'home' && selection !== null && Boolean(app.open);
+
+  const tabs: { id: Tab; label: string; icon: IconName }[] = [
+    { id: 'home', label: t('tabHome'), icon: 'home' },
+    { id: 'history', label: t('tabHistory'), icon: 'history' },
+    { id: 'models', label: t('tabModels'), icon: 'models' },
+    { id: 'settings', label: t('tabSettings'), icon: 'settings' },
   ];
+
+  const pick = async () => {
+    await app.pickAudio();
+    setSelection(null);
+  };
+
+  const effectiveTheme = app.settings?.theme ?? (systemPrefersDark() ? 'dark' : 'light');
+  const toggleTheme = () => app.settings && void app.saveSettings({ ...app.settings, theme: effectiveTheme === 'dark' ? 'light' : 'dark' });
+
+  const showToast = useCallback((message: string) => {
+    setToast(message);
+    setTimeout(() => setToast(undefined), 2200);
+  }, []);
 
   return (
     <div className="app">
-      <nav className="nav" aria-label={t('sections')}>
-        <span className="nav__logo" title="CodexVTT">
-          <Logo size={48} />
-        </span>
-        <div className="nav__items">
+      <header className="nav">
+        <div className="brand" title={t('localBadgeTitle')}>
+          <i aria-hidden="true">C</i>CodexVTT
+        </div>
+        <nav className="nav__tabs" aria-label={t('sections')}>
           {tabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className="nav__item"
-              aria-current={tab === item.id ? 'page' : undefined}
-              onClick={() => setTab(item.id)}
-            >
-              <Icon d={item.icon} />
-              <span className="nav__label">{item.label}</span>
+            <button key={item.id} type="button" className={`tab${tab === item.id ? ' on' : ''}`} aria-current={tab === item.id ? 'page' : undefined} onClick={() => setTab(item.id)}>
+              <Icon name={item.icon} />
+              <span>{item.label}</span>
             </button>
           ))}
+        </nav>
+        <div className="sp" />
+        <div className="save" role="status" title={t('localBadgeTitle')}>
+          <span className={`dot${editing && dirty ? ' warn' : ''}`} />
+          <span>{editing && dirty ? t('saveEdited') : editing && app.open?.historyId ? t('saveHistory') : t('localBadge')}</span>
         </div>
-        <div className="nav__bottom">
-          <span className="nav__local" title={t('localBadgeTitle')}>
-            <Icon d="M12 2.5 4.5 5.5v6c0 4.6 3.2 8.4 7.5 9.9 4.3-1.5 7.5-5.3 7.5-9.9v-6z M9 12l2 2 4-4" />
-            <span className="sr-only">{t('localBadge')}</span>
-          </span>
-          <button
-            type="button"
-            className="nav__settings"
-            title={t('tabSettings')}
-            aria-label={t('tabSettings')}
-            aria-current={tab === 'settings' ? 'page' : undefined}
-            onClick={() => setTab('settings')}
-          >
-            <Icon d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-          </button>
-        </div>
-      </nav>
+        <button type="button" className="btn icon" title={t('toggleTheme')} aria-label={t('toggleTheme')} onClick={toggleTheme}>
+          <Icon name={effectiveTheme === 'dark' ? 'sun' : 'moon'} />
+        </button>
+        <ExportMenu app={app} dirty={editing && dirty} />
+      </header>
 
-      <div className="content">
-        {error && (
-          <div role="alert" className="banner banner--error">
-            <div>
-              <strong>{error.title}</strong> {error.action}
-              <span className="banner__code">
-                {' '}
-                ({t('errorCode')}: {app.error!.code})
-              </span>
-            </div>
-            {app.error!.code === 'history_folder_blocked' && app.desktop && (
-              <button type="button" className="link" onClick={() => void app.pickHistoryFolder()}>
-                {t('changeFolder')}
+      <div className="body">
+        {tab === 'home' && (
+          <FileList
+            app={app}
+            selection={selection}
+            running={running}
+            paused={paused}
+            onSelectQueue={(item) => {
+              if (item.status === 'done') void app.openQueueItem(item.key);
+              setSelection({ kind: 'queue', key: item.key });
+            }}
+            onSelectRecent={(id) => {
+              void app.openFromHistory(id);
+              setSelection({ kind: 'recent', id });
+            }}
+            onNew={() => setSelection(null)}
+            onAddFiles={() => {
+              void app.addToQueue();
+              setSelection(null);
+            }}
+          />
+        )}
+
+        <main className="main">
+          {error && (
+            <div role="alert" className="banner banner--error">
+              <div>
+                <strong>{error.title}</strong> {error.action}
+                <span className="banner__code">
+                  {' '}
+                  ({t('errorCode')}: {app.error!.code})
+                </span>
+              </div>
+              {app.error!.code === 'history_folder_blocked' && app.desktop && (
+                <button type="button" className="link" onClick={() => void app.pickHistoryFolder()}>
+                  {t('changeFolder')}
+                </button>
+              )}
+              <button type="button" className="link" onClick={app.dismissError}>
+                {t('close')}
               </button>
-            )}
-            <button type="button" className="link" onClick={app.dismissError}>
-              {t('close')}
-            </button>
-          </div>
-        )}
-        {app.notice && (
-          <div role="status" className="banner banner--info">
-            <span>{t(app.notice.key, app.notice.params)}</span>
-            <button type="button" className="link" onClick={app.dismissNotice}>
-              {t('close')}
-            </button>
-          </div>
-        )}
-
-        <main>
-          {tab === 'transcribe' && (
-            <>
-              <TranscribePanel app={app} onOpenModels={() => setTab('models')} />
-              <Dock app={app} onOpenHistory={() => setTab('history')} />
-            </>
+            </div>
           )}
-          {tab === 'history' && <HistoryPanel app={app} onOpened={() => setTab('transcribe')} />}
+          {app.notice && (
+            <div role="status" className="banner banner--info">
+              <span>{t(app.notice.key, app.notice.params)}</span>
+              <button type="button" className="link" onClick={app.dismissNotice}>
+                {t('close')}
+              </button>
+            </div>
+          )}
+
+          {tab === 'home' &&
+            (selection === null ? (
+              app.readyModels.length === 0 ? (
+                <section className="page" aria-labelledby="transcribe-title">
+                  <h2 id="transcribe-title" className="section-title">
+                    {t('newTranscription')}
+                  </h2>
+                  <div className="card callout">
+                    <p>{t('needModel')}</p>
+                    <button type="button" className="btn pri" onClick={() => setTab('models')}>
+                      {t('chooseModel')}
+                    </button>
+                  </div>
+                </section>
+              ) : (
+                <StartPage
+                  app={app}
+                  language={language}
+                  onLanguage={setLanguage}
+                  needsLanguage={needsLanguage}
+                  running={running}
+                  onPick={() => void pick()}
+                  onOpenModels={() => setTab('models')}
+                  onStart={() => void app.start(language)}
+                  onStartQueue={() => app.startQueue(language)}
+                />
+              )
+            ) : (
+              <Workbench app={app} selection={selection} onDirtyChange={setDirty} onCopied={() => showToast(t('copied'))} />
+            ))}
+          {tab === 'history' && (
+            <HistoryPanel
+              app={app}
+              onOpened={(id) => {
+                setSelection({ kind: 'recent', id });
+                setTab('home');
+              }}
+            />
+          )}
           {tab === 'models' && <ModelsPanel app={app} />}
           {tab === 'settings' && <SettingsPanel app={app} />}
         </main>
       </div>
+      {toast && (
+        <div className="toast" role="status">
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
 
-function Icon({ d }: { d: string }) {
+function ExportMenu({ app, dirty }: { app: CodexVttState; dirty: boolean }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const formats: ExportFormat[] = ['txt', 'srt', 'vtt'];
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent ? e.key === 'Escape' : !root.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', close);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', close);
+    };
+  }, [open]);
+
   return (
-    <svg className="icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false">
-      <path d={d} />
-    </svg>
+    <div className="exportmenu" ref={root}>
+      <button type="button" className="btn pri" aria-haspopup="menu" aria-expanded={open} disabled={!app.open} title={app.open ? undefined : t('exportNothing')} onClick={() => setOpen(!open)}>
+        <Icon name="upload" />
+        {t('export')}
+      </button>
+      {open && (
+        <div className="popmenu" role="menu">
+          {formats.map((format) => (
+            <button
+              key={format}
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                void app.exportAs(format);
+              }}
+            >
+              {t('exportAs', { format: format.toUpperCase() })}
+            </button>
+          ))}
+          {dirty && <p className="note popmenu__note">{t('exportOriginal')}</p>}
+        </div>
+      )}
+    </div>
   );
 }

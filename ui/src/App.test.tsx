@@ -136,13 +136,14 @@ describe('App', () => {
     const { user } = setup({ installed: ['base'] });
 
     await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
-    expect(await screen.findByText('riunione.mp3')).toBeInTheDocument();
+    expect((await screen.findAllByText('riunione.mp3')).length).toBeGreaterThan(0);
     await user.selectOptions(screen.getByLabelText('Lingua'), 'it');
     await user.click(screen.getByRole('button', { name: 'Avvia trascrizione' }));
 
     expect(await screen.findByRole('heading', { name: 'Trascrizione di riunione.mp3' })).toBeInTheDocument();
     expect(screen.getByTestId('model-used')).toHaveTextContent('Modello usato: Base (ggml-base.bin, runtime Cpu)');
-    expect(screen.getByLabelText('Testo trascritto')).toHaveValue(
+    const segments = screen.getAllByRole('textbox', { name: /^Testo del segmento/ });
+    expect(segments.map((s) => s.textContent).join(' ')).toBe(
       'Buongiorno a tutti e grazie per essere qui. Oggi parliamo del rilascio della prima versione di CodexVTT. Tutto il lavoro avviene in locale, sul vostro computer.',
     );
 
@@ -164,7 +165,8 @@ describe('App', () => {
 
     await user.click(within(item).getByRole('button', { name: 'Apri riunione.mp3' }));
     expect(await screen.findByRole('heading', { name: 'Trascrizione di riunione.mp3' })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Esporta TXT' }));
+    await user.click(screen.getByRole('button', { name: 'Esporta' }));
+    await user.click(screen.getByRole('menuitem', { name: 'Esporta TXT' }));
     expect(await screen.findByText('Salvato: riunione.txt')).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Cronologia' }));
@@ -227,7 +229,7 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Models' }));
     expect(await screen.findByText('Recommended: Large v3 Turbo (q5_0), the most accurate among the compatible ones.')).toBeInTheDocument();
     expect(screen.getByText('16 GB total RAM: using models that need at most 8 GB.')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Transcribe' }));
+    await user.click(screen.getByRole('button', { name: 'Home' }));
     await user.click(screen.getByRole('button', { name: 'Add a file to get started' }));
     await user.click(await screen.findByRole('button', { name: 'Start transcription' }));
     expect(await screen.findByTestId('model-used')).toHaveTextContent('Model used: Base (ggml-base.bin, runtime Cpu)');
@@ -266,31 +268,6 @@ describe('App', () => {
     expect(alert).toHaveTextContent('audio_codec_missing');
   });
 
-  it('can hide the mascot from settings', async () => {
-    const { user } = setup({ installed: ['base'] });
-    expect(await screen.findByTestId('mascot-stage')).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Impostazioni' }));
-    await user.click(await screen.findByLabelText('Mostra la mascotte'));
-    await user.click(screen.getByRole('button', { name: 'Trascrivi' }));
-
-    await waitFor(() => expect(screen.queryByTestId('mascot-stage')).not.toBeInTheDocument());
-  });
-
-  it('lets the user pick the mascot', async () => {
-    const { user } = setup({ installed: ['base'] });
-    expect(await screen.findByTestId('mascot-stage')).toHaveAttribute('data-character', 'tina');
-
-    await user.click(screen.getByRole('button', { name: 'Impostazioni' }));
-    const picker = await screen.findByRole('group', { name: 'Mascotte' });
-    expect(within(picker).getAllByRole('radio')).toHaveLength(2);
-    await user.click(within(picker).getByRole('radio', { name: 'Giulio' }));
-    await waitFor(() => expect(within(picker).getByRole('radio', { name: 'Giulio' })).toBeChecked());
-
-    await user.click(screen.getByRole('button', { name: 'Trascrivi' }));
-    expect(await screen.findByTestId('mascot-stage')).toHaveAttribute('data-character', 'giulio');
-  });
-
   it('shows the total of transcribed audio in settings', async () => {
     const { user } = setup({ history: previewHistory.slice(0, 2) });
     await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));
@@ -308,27 +285,6 @@ describe('App', () => {
 
     await user.selectOptions(screen.getByLabelText('Aspetto'), 'system');
     await waitFor(() => expect(document.documentElement.dataset.theme).toBeUndefined());
-  });
-
-  it('switches between the Sabbia, Natale, Halloween and Cherry color themes', async () => {
-    const { user } = setup();
-    await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));
-
-    const themes = await screen.findByRole('group', { name: 'Tema' });
-    expect(within(themes).getByRole('radio', { name: 'Sabbia' })).toBeChecked();
-    expect(document.documentElement.dataset.palette).toBeUndefined();
-
-    await user.click(within(themes).getByRole('radio', { name: 'Natale' }));
-    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('natale'));
-
-    await user.click(within(themes).getByRole('radio', { name: 'Halloween' }));
-    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('halloween'));
-
-    await user.click(within(themes).getByRole('radio', { name: 'Ciliegia' }));
-    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('ciliegia'));
-
-    await user.click(within(themes).getByRole('radio', { name: 'Sabbia' }));
-    await waitFor(() => expect(document.documentElement.dataset.palette).toBeUndefined());
   });
 
   it('never uses the network', async () => {
@@ -361,7 +317,7 @@ describe('App in modalità server', () => {
     const { user, files } = setupServer({ installed: ['base'] });
 
     await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
-    expect(await screen.findByText('caricato.mp3')).toBeInTheDocument();
+    expect((await screen.findAllByText('caricato.mp3')).length).toBeGreaterThan(0);
     expect(files.pickAudio).toHaveBeenCalled();
     await user.click(screen.getByRole('button', { name: 'Avvia trascrizione' }));
     await screen.findByRole('heading', { name: /Trascrizione di/ });
@@ -460,7 +416,7 @@ describe('Nuovi modelli e GPU', () => {
     await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
     const start = await screen.findByRole('button', { name: 'Avvia trascrizione' });
     expect(start).toBeDisabled();
-    expect(screen.getByRole('status')).toHaveTextContent('richiede di scegliere la lingua');
+    expect(screen.getByText(/richiede di scegliere la lingua/)).toBeInTheDocument();
 
     await user.selectOptions(screen.getByLabelText('Lingua'), 'it');
     expect(screen.getByRole('button', { name: 'Avvia trascrizione' })).toBeEnabled();

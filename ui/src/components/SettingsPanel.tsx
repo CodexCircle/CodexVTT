@@ -1,16 +1,6 @@
 import { useEffect, useState } from 'react';
-import { mascotCharacters, palettes, type Palette } from '../bridge/protocol';
-import { Mascot } from '../mascot/Mascot';
 import { transcriptionLanguages, useI18n, type MessageKey } from '../i18n/i18n';
 import type { CodexVttState } from '../state/useCodexVtt';
-
-/** Campioni mostrati nel selettore: i colori di ciascun tema, dal più chiaro al più scuro. */
-const swatches: Record<Palette, string[]> = {
-  sabbia: ['#fbf7f4', '#e5ded2', '#a39382', '#685d54', '#232323'],
-  natale: ['#fbeee0', '#efd1b2', '#8e2430', '#6c151e', '#0f3d3a'],
-  halloween: ['#fdf1e3', '#f7d3a6', '#e0701f', '#a8430f', '#3b1d5c'],
-  ciliegia: ['#FFD9D9', '#E8B7C2', '#670626', '#3a0a1d', '#2c0614'],
-};
 
 export function SettingsPanel({ app }: { app: CodexVttState }) {
   const { t } = useI18n();
@@ -57,28 +47,6 @@ export function SettingsPanel({ app }: { app: CodexVttState }) {
             <option value="en">English</option>
           </select>
         </label>
-        <fieldset className="theme-picker">
-          <legend>{t('palette')}</legend>
-          <div className="theme-picker__options">
-            {palettes.map((palette) => (
-              <label key={palette} className="theme-option">
-                <input
-                  type="radio"
-                  name="palette"
-                  value={palette}
-                  checked={(s.palette ?? 'sabbia') === palette}
-                  onChange={() => void app.saveSettings({ ...s, palette: palette === 'sabbia' ? null : palette })}
-                />
-                <span className="theme-option__swatches" aria-hidden="true">
-                  {swatches[palette].map((color) => (
-                    <i key={color} style={{ background: color }} />
-                  ))}
-                </span>
-                <span>{t(`palette_${palette}`)}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
         <label>
           {t('theme')}
           <select
@@ -102,34 +70,6 @@ export function SettingsPanel({ app }: { app: CodexVttState }) {
             ))}
           </select>
         </label>
-        <label className="check">
-          <input
-            type="checkbox"
-            checked={s.showMascot}
-            onChange={(e) => void app.saveSettings({ ...s, showMascot: e.target.checked })}
-          />
-          {t('showMascot')}
-        </label>
-        {s.showMascot && (
-          <fieldset className="mascot-picker">
-            <legend>{t('mascot')}</legend>
-            <div className="mascot-picker__options">
-              {mascotCharacters.map((who) => (
-                <label key={who} className="mascot-option">
-                  <input
-                    type="radio"
-                    name="mascot"
-                    value={who}
-                    checked={(s.mascot ?? 'tina') === who}
-                    onChange={() => void app.saveSettings({ ...s, mascot: who === 'tina' ? null : who })}
-                  />
-                  <Mascot activity="idle" character={who} size={84} testId={`mascot-option-${who}`} />
-                  <span>{t(`mascot_${who}`)}</span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-        )}
         <label className="check">
           <input
             type="checkbox"
