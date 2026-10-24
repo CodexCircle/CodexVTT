@@ -41,6 +41,9 @@ public sealed class BenchmarkRunner(TranscriptionService transcription, ModelSto
         try
         {
             var ready = models.List().Where(s => s.State is ModelState.Ready).Select(s => s.Model).ToList();
+            // Un nuovo test sostituisce i precedenti: restano solo le misure di questa esecuzione.
+            if (ready.Count > 0)
+                store.Clear();
             // Il primo modello paga da solo i costi una tantum del processo (runtime nativo, driver video, cache del disco):
             // senza una prova a vuoto il suo tempo fisso risultava più alto di quello dei modelli più grandi provati dopo.
             if (ready.Count > 0)

@@ -65,6 +65,16 @@ public sealed class BenchmarkStore
         }
     }
 
+    /// <summary>Cancella tutte le misure: un nuovo test sostituisce quelli precedenti, anche di altri runtime o versioni.</summary>
+    public void Clear()
+    {
+        lock (_gate)
+        {
+            if (File.Exists(_path))
+                File.Delete(_path);
+        }
+    }
+
     /// <summary>Tutte le misure con il loro stato rispetto all'hardware, ai modelli installati e alla versione dell'app.</summary>
     public IReadOnlyList<BenchmarkView> Views(string fingerprint, Func<string, string?> identityOf, string appVersion)
     {

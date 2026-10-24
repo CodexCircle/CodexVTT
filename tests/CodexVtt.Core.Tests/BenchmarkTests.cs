@@ -209,6 +209,17 @@ public sealed class BenchmarkRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_new_test_discards_the_measurements_of_the_previous_ones()
+    {
+        await InstallAsync();
+        _results.Record("pc-1", new BenchmarkEntry("medium", "sha-medium", "Cpu", 4, 4, 1, 2, DateTimeOffset.UtcNow, "2.0.0"));
+
+        await _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", 4, null, CancellationToken.None);
+
+        Assert.Equal(["base", "small"], _results.Read().Entries.Select(e => e.ModelId).Order());
+    }
+
+    [Fact]
     public async Task Does_not_start_while_a_transcription_is_running_and_a_transcription_cannot_start_during_the_test()
     {
         await InstallAsync();
