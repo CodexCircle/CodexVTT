@@ -450,6 +450,10 @@ export interface Commands {
   'history.delete': { req: { id: string }; res: { deleted: boolean } };
   /** Cambia nome e/o raccolta di una trascrizione (null = toglie). */
   'history.update': { req: { id: string; title?: string | null; collectionId?: string | null }; res: HistoryEntry };
+  /** Dove riprodurre l'audio originale di una trascrizione; available=false se il file non c'è più o non è stato registrato. */
+  'history.audio': { req: { id: string }; res: { available: boolean; url?: string; contentType?: string } };
+  /** Sostituisce i segmenti di una trascrizione in cronologia con quelli corretti nell'editor. */
+  'history.saveEdits': { req: { id: string; segments: { start: number; end: number; text: string }[] }; res: HistoryEntry };
   /** Crea (senza id) o modifica una raccolta. */
   'collections.save': { req: { id?: string; name: string; color: CollectionColor }; res: Collection };
   'collections.delete': { req: { id: string }; res: { deleted: boolean } };

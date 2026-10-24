@@ -65,11 +65,12 @@ const it = {
 
   // Risultato
   resultTitle: 'Trascrizione di {file}',
-  modelUsed:
-    'Modello usato: {model} ({file}, runtime {runtime}){language} · durata audio {duration} · elaborata in {elapsed} sul tuo PC',
   detectedLanguage: ' · lingua: {language}',
-  hallucinationHint: 'Whisper può sbagliare o inventare frasi su silenzi e musica: ricontrolla i passaggi importanti.',
   copy: 'Copia testo',
+  audioMissing: 'Audio originale non trovato: sposta il file dov’era o rifai la trascrizione per riascoltarlo.',
+  saveEdits: 'Salva',
+  saveNeedsHistory: 'Si può salvare solo una trascrizione presente nella cronologia.',
+  savedEdits: 'Modifiche salvate.',
   copied: 'Copiato!',
   exportAs: 'Esporta {format}',
   saved: 'Salvato: {file}',
@@ -318,7 +319,6 @@ const it = {
   zoomOut: 'Riduci',
   playbackSpeed: 'Velocità di riproduzione',
   play: 'Avvia',
-  playNoAudio: 'Il lettore muove il cursore sulla timeline: la riproduzione dell’audio non è ancora disponibile.',
   addSegment: 'Aggiungi segmento',
   folderTested: 'Cartella testata',
   folderTestedOn: 'Cartella testata il {date}: si può scrivere, leggere e cancellare.',
@@ -489,11 +489,12 @@ const en: Record<MessageKey, string> = {
   recentEmpty: 'Completed transcripts will show up here.',
 
   resultTitle: 'Transcript of {file}',
-  modelUsed:
-    'Model used: {model} ({file}, runtime {runtime}){language} · audio length {duration} · processed in {elapsed} on your PC',
   detectedLanguage: ' · language: {language}',
-  hallucinationHint: 'Whisper can make mistakes or invent sentences over silence and music: double-check important passages.',
   copy: 'Copy text',
+  audioMissing: 'Original audio not found: put the file back where it was or transcribe again to listen to it.',
+  saveEdits: 'Save',
+  saveNeedsHistory: 'Only a transcript in the history can be saved.',
+  savedEdits: 'Changes saved.',
   copied: 'Copied!',
   exportAs: 'Export {format}',
   saved: 'Saved: {file}',
@@ -737,7 +738,6 @@ const en: Record<MessageKey, string> = {
   zoomOut: 'Zoom out',
   playbackSpeed: 'Playback speed',
   play: 'Play',
-  playNoAudio: 'The player moves the cursor along the timeline: audio playback is not available yet.',
   addSegment: 'Add segment',
   folderTested: 'Folder tested',
   folderTestedOn: 'Folder tested on {date}: it can be written, read and deleted.',

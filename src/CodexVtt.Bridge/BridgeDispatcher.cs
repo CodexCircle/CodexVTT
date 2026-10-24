@@ -112,6 +112,8 @@ public sealed partial class BridgeDispatcher : IDisposable
             ["history.testFolder"] = (p, _) => Task.FromResult<object?>(FolderProbe.Test(Read<FolderRef>(p).Directory)),
             ["history.setFolder"] = (p, _) => Task.FromResult<object?>(SetHistoryFolder(Read<FolderRef>(p).Directory)),
             ["history.update"] = (p, _) => Task.FromResult<object?>(UpdateHistory(p)),
+            ["history.audio"] = (p, _) => Task.FromResult<object?>(HistoryAudio(Read<HistoryRef>(p).Id)),
+            ["history.saveEdits"] = (p, _) => Task.FromResult<object?>(SaveHistoryEdits(Read<HistoryEditsRequest>(p))),
             ["collections.save"] = (p, _) => Task.FromResult<object?>(SaveCollection(Read<CollectionSaveRequest>(p))),
             ["collections.delete"] = (p, _) => Task.FromResult<object?>(DeleteCollection(Read<HistoryRef>(p).Id)),
             ["collections.reorder"] = (p, _) => Task.FromResult<object?>(ReorderCollection(Read<CollectionReorderRequest>(p))),
@@ -545,6 +547,56 @@ public sealed partial class BridgeDispatcher : IDisposable
         return ToView(entry, library.Read());
     }
 
+    private string? AudioPathOrNull(string audioId)
+    {
+        try
+        {
+            return _audio.PathOf(audioId);
+        }
+        catch (CodexVttException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Se l'audio originale è ancora al suo posto, dà alla UI l'indirizzo da cui riprodurlo (servito da <see cref="OpenHistoryAudio"/>).</summary>
+    private object HistoryAudio(string id)
+    {
+        var path = History().FindAudio(id);
+        return path is null
+            ? new { Available = false }
+            : new { Available = true, Url = "/audio/" + Uri.EscapeDataString(id), ContentType = AudioMedia.ContentType(path) };
+    }
+
+    /// <summary>Percorso e tipo dell'audio di una trascrizione per chi lo serve (server, WebView); null se non disponibile.</summary>
+    public (string Path, string ContentType)? OpenHistoryAudio(string id)
+    {
+        try
+        {
+            return History().FindAudio(id) is { } path && AudioMedia.ContentType(path) is { } type ? (path, type) : null;
+        }
+        catch (CodexVttException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>Salva nella cronologia il testo corretto nell'editor: tempi e testo di ogni segmento.</summary>
+    private HistoryEntryView SaveHistoryEdits(HistoryEditsRequest request)
+    {
+        var segments = request.Segments;
+        if (segments is null || segments.Count == 0 || segments.Any(s => s.Text is null || !double.IsFinite(s.Start) || !double.IsFinite(s.End) || s.Start < 0 || s.End < s.Start))
+            throw new CodexVttException(ErrorCodes.InvalidRequest, "Segmenti non validi.");
+
+        var history = History();
+        var entry = history.UpdateSegments(
+            request.Id,
+            segments.Select(s => new TranscriptSegment(TimeSpan.FromSeconds(s.Start), TimeSpan.FromSeconds(s.End), s.Text.Trim(), null)).ToList(),
+            UiLanguage());
+        Emit("history.changed", null);
+        return ToView(entry, new HistoryLibrary(history.Directory).Read());
+    }
+
     private HistoryGroup SaveCollection(CollectionSaveRequest request)
     {
         var saved = Library().SaveCollection(request.Id, request.Name, request.Color);
@@ -632,13 +684,13 @@ public sealed partial class BridgeDispatcher : IDisposable
     /// Con "Accesso alle cartelle controllato" di Defender la cartella della cronologia può risultare
     /// non scrivibile: la trascrizione si salva comunque nella cartella dati locale, così non si perde.
     /// </summary>
-    private bool TryRecover(TranscriptionResult result)
+    private bool TryRecover(TranscriptionResult result, string? audioPath)
     {
         if (_historyLocation.RecoveryDirectory is not { Length: > 0 } directory)
             return false;
         try
         {
-            new TranscriptHistory(directory).Save(result, UiLanguage());
+            new TranscriptHistory(directory).Save(result, UiLanguage(), audioPath);
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -668,7 +720,7 @@ public sealed partial class BridgeDispatcher : IDisposable
             case JobStatus.Completed:
                 try
                 {
-                    historyId = History().Save(job.Result!, UiLanguage()).Id;
+                    historyId = History().Save(job.Result!, UiLanguage(), AudioPathOrNull(job.AudioId)).Id;
                 }
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
@@ -676,7 +728,7 @@ public sealed partial class BridgeDispatcher : IDisposable
                     // La cartella non vale più come testata: la spunta verde non deve restare su una cartella che non scrive.
                     if (_settings.Load() is { HistoryDirectoryTestedAt: not null } tested)
                         _settings.Save(tested with { HistoryDirectoryTestedAt = null });
-                    var code = TryRecover(job.Result!) ? ErrorCodes.HistoryFolderBlocked : ErrorCodes.HistorySaveFailed;
+                    var code = TryRecover(job.Result!, AudioPathOrNull(job.AudioId)) ? ErrorCodes.HistoryFolderBlocked : ErrorCodes.HistorySaveFailed;
                     Emit("history.saveFailed", new { job.JobId, Error = new BridgeError(code, "Impossibile salvare nella cronologia.") });
                 }
 
@@ -774,6 +826,10 @@ public sealed record ExportRequest(string? JobId, string? HistoryId, ExportForma
 public sealed record HistoryRef(string Id);
 
 public sealed record FolderRef(string Directory);
+
+public sealed record SegmentEdit(double Start, double End, string Text);
+
+public sealed record HistoryEditsRequest(string Id, IReadOnlyList<SegmentEdit>? Segments);
 
 public sealed record PickedAudio(string AudioId, AudioInfo Info);
 

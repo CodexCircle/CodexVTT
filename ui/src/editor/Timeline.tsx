@@ -157,7 +157,7 @@ export function Timeline({ segments, speakers, duration, current, transport, hea
           <button type="button" className="speed" aria-label={t('playbackSpeed')} onClick={transport.cycleSpeed}>
             {transport.speed.toFixed(1)}x
           </button>
-          <button type="button" className="play" aria-label={transport.playing ? t('pause') : t('play')} title={t('playNoAudio')} onClick={transport.toggle}>
+          <button type="button" className="play" aria-label={transport.playing ? t('pause') : t('play')} onClick={transport.toggle}>
             <Icon name={transport.playing ? 'pause' : 'play'} />
           </button>
         </div>
