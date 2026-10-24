@@ -63,7 +63,8 @@ public class FolderProbeTests
         {
             var result = FolderProbe.Test(locked);
             Assert.False(result.Ok);
-            Assert.Equal(FolderTestResult.CannotWrite, result.Error);
+            Assert.Equal(FolderTestResult.BlockedByWindows, result.Error);
+            Assert.Equal(Environment.ProcessPath, result.AppPath);
         }
         finally
         {

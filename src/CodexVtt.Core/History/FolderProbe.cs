@@ -1,9 +1,15 @@
 namespace CodexVtt.Core.History;
 
-/// <summary>Esito del test di una cartella di lavoro. <c>Error</c> è un codice stabile che la UI traduce.</summary>
-public sealed record FolderTestResult(bool Ok, string? Error = null)
+/// <summary>
+/// Esito del test di una cartella di lavoro. <c>Error</c> è un codice stabile che la UI traduce.
+/// <c>ControlledFolderAccess</c> (<c>on</c>, <c>audit</c>, <c>off</c>, <c>unknown</c>) e <c>AppPath</c> compaiono solo con
+/// <c>blocked_by_windows</c>, per dire all'utente quale app autorizzare.
+/// </summary>
+public sealed record FolderTestResult(bool Ok, string? Error = null, string? ControlledFolderAccess = null, string? AppPath = null)
 {
     public const string NotFound = "not_found";
+    /// <summary>Scrittura negata dal sistema su Windows: causa probabile «Accesso alle cartelle controllato» (o i permessi della cartella).</summary>
+    public const string BlockedByWindows = "blocked_by_windows";
     public const string CannotWrite = "cannot_write";
     public const string CannotRead = "cannot_read";
     public const string CannotDelete = "cannot_delete";
@@ -42,6 +48,10 @@ public static class FolderProbe
             try
             {
                 File.WriteAllText(path, Content);
+            }
+            catch (UnauthorizedAccessException) when (OperatingSystem.IsWindows())
+            {
+                return Blocked();
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
@@ -84,6 +94,35 @@ public static class FolderProbe
             {
                 // Pulizia best-effort: l'esito del test è già deciso.
             }
+        }
+    }
+
+    private static FolderTestResult Blocked() =>
+        new(false, FolderTestResult.BlockedByWindows, ControlledFolderAccessState(), Environment.ProcessPath);
+
+    /// <summary>
+    /// Stato di «Accesso alle cartelle controllato» letto dal registro (best effort, sola lettura):
+    /// <c>on</c>, <c>audit</c>, <c>off</c>; <c>unknown</c> se la chiave non è leggibile (criteri di gruppo, permessi, altro antivirus).
+    /// </summary>
+    internal static string ControlledFolderAccessState()
+    {
+        if (!OperatingSystem.IsWindows())
+            return "unknown";
+        try
+        {
+            using var key = Microsoft.Win32.Registry.LocalMachine.OpenSubKey(
+                @"SOFTWARE\Microsoft\Windows Defender\Windows Defender Exploit Guard\Controlled Folder Access");
+            return key?.GetValue("EnableControlledFolderAccess") switch
+            {
+                1 => "on",
+                2 => "audit",
+                0 => "off",
+                _ => "unknown",
+            };
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+        {
+            return "unknown";
         }
     }
 }

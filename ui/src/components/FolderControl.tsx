@@ -1,8 +1,9 @@
 import { useId, useState } from 'react';
 import { useI18n, type MessageKey } from '../i18n/i18n';
 import type { CodexVttState } from '../state/useCodexVtt';
+import type { FolderTestResult } from '../bridge/protocol';
 
-type Check = { phase: 'untested' } | { phase: 'testing' } | { phase: 'failed'; reason: string };
+type Check = { phase: 'untested' } | { phase: 'testing' } | { phase: 'failed'; reason: string; detail?: FolderTestResult };
 
 /**
  * Cambio della cartella di lavoro: «Cambia cartella…» apre la selezione, la scelta resta «non testata» finché
@@ -31,7 +32,7 @@ export function FolderControl({ app, compact = false }: { app: CodexVttState; co
       return;
     }
     if (!result.ok) {
-      setCheck({ phase: 'failed', reason: result.error ?? 'cannot_write' });
+      setCheck({ phase: 'failed', reason: result.error ?? 'cannot_write', detail: result });
       return;
     }
     // Solo a test riuscito la cartella viene adottata (il core rifà il test prima di salvarla).
@@ -64,6 +65,24 @@ export function FolderControl({ app, compact = false }: { app: CodexVttState; co
             <p role="alert" className="folder-control__error">
               {t(`folderFail_${check.reason}` as MessageKey)} {t('folderKept')}
             </p>
+          )}
+          {check.phase === 'failed' && check.reason === 'blocked_by_windows' && (
+            <div className="folder-control__blocked" role="note">
+              <p>
+                {check.detail?.controlledFolderAccess === 'on'
+                  ? t('folderBlockedCfaOn')
+                  : check.detail?.controlledFolderAccess === 'off'
+                    ? t('folderBlockedCfaOff')
+                    : t('folderBlockedCfaUnknown')}
+              </p>
+              <p>{t('folderBlockedSteps')}</p>
+              {check.detail?.appPath && (
+                <p>
+                  {t('folderBlockedApp')}: <code>{check.detail.appPath}</code>
+                </p>
+              )}
+              <p className="muted">{t('folderBlockedHistoryNote')}</p>
+            </div>
           )}
           {check.phase === 'untested' && <p className="muted">{t('folderUntestedHint')}</p>}
         </div>
