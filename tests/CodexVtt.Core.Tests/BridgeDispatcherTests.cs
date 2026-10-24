@@ -320,9 +320,9 @@ public sealed class BridgeDispatcherTests : IDisposable
         Assert.Equal(BenchmarkClips.All.Count, entries.Count);
         Assert.Equal(BenchmarkClips.All.Select(c => c.Id).Order(), entries.Select(e => e.GetProperty("clipId").GetString()!).Order());
         Assert.Contains(entries, e => e.GetProperty("scenario").GetString() == "noisy" && e.GetProperty("language").GetString() == "it");
-        var reliability = Assert.Single(snapshot.GetProperty("reliability").EnumerateArray());
-        Assert.Equal("base", reliability.GetProperty("modelId").GetString());
-        Assert.Equal("it", reliability.GetProperty("language").GetString());
+        var reliability = snapshot.GetProperty("reliability").EnumerateArray().ToList();
+        Assert.All(reliability, r => Assert.Equal("base", r.GetProperty("modelId").GetString()));
+        Assert.Equal(BenchmarkClips.Languages.Order(), reliability.Select(r => r.GetProperty("language").GetString()!).Order());
         // Il consiglio viene dalle misure, per la lingua chiesta.
         var recommendation = Ok(await Call("models.recommend", new { language = "it" }));
         Assert.Equal("benchmark", recommendation.GetProperty("basis").GetString());

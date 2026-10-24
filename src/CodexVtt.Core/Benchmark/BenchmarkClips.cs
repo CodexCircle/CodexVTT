@@ -51,6 +51,16 @@ public static class BenchmarkClips
         new("it-noisy-1", "it", BenchmarkScenario.Noisy, "Le avventure di Pinocchio, capitolo 6, con rumore", BenchmarkReference.FileName, BenchmarkReference.Url,
             BenchmarkReference.SizeBytes, BenchmarkReference.Sha256, BenchmarkReference.ApproximateSeconds, BenchmarkReferenceText.Text,
             NoiseSourceId: "it-clean-1", NoiseSnrDb: NoiseSnrDb),
+        new("it-clean-2", "it", BenchmarkScenario.Clean, "Il giornalino di Gian Burrasca, 7 novembre (LibriVox)", "gianburrasca_024_vamba_64kb.mp3",
+            "https://archive.org/download/il_giornalino_di_gian_burrasca_0910_librivox1/gianburrasca_024_vamba_64kb.mp3",
+            1_611_825, "0e1e58fb0824fdb9974c57f24bfe939ae797fe8762071a741035b110f4d6ca60", 201, BenchmarkClipTexts.GianBurrasca7Novembre),
+        new("en-clean-1", "en", BenchmarkScenario.Clean, "Unbeaten Tracks in Japan, Letter XXXIV (LibriVox)", "unbeatentracksjapan_41_bird_64kb.mp3",
+            "https://archive.org/download/unbeaten_tracks_japan_ava_librivox/unbeatentracksjapan_41_bird_64kb.mp3",
+            1_801_728, "c45d96a6c69278a2c6c8f2c836f337d5e52228caff25f8aa45c5d436727f3a8f", 225, BenchmarkClipTexts.UnbeatenTracksLetter34),
+        new("en-noisy-1", "en", BenchmarkScenario.Noisy, "Unbeaten Tracks in Japan, Letter XXXIV, with noise", "unbeatentracksjapan_41_bird_64kb.mp3",
+            "https://archive.org/download/unbeaten_tracks_japan_ava_librivox/unbeatentracksjapan_41_bird_64kb.mp3",
+            1_801_728, "c45d96a6c69278a2c6c8f2c836f337d5e52228caff25f8aa45c5d436727f3a8f", 225, BenchmarkClipTexts.UnbeatenTracksLetter34,
+            NoiseSourceId: "en-clean-1", NoiseSnrDb: NoiseSnrDb),
     ];
 
     public static BenchmarkClip? Find(string id) => All.FirstOrDefault(c => c.Id == id);
