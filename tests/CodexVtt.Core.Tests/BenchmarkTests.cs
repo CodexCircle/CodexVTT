@@ -276,15 +276,16 @@ public sealed class BenchmarkRunnerTests : IDisposable
     {
         await _models.ImportAsync(_dir.File("base.bin", BaseContent));
 
+        // Un secondo di audio sta in una sola finestra: il motore di prova dice «testo» una volta sola (con più finestre lo ripeterebbe).
         // Il motore di prova dice sempre «testo»: contro «Testo.» è identico, contro «testo altro» manca una parola su due.
-        var exact = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, "Testo.", CancellationToken.None);
+        var exact = await _runner.RunAsync(Audio(1), 1, "pc-1", "2.0.0", "it", null, "Testo.", CancellationToken.None);
         Assert.Equal(100, Assert.Single(exact).Accuracy);
         Assert.Equal(100, Assert.Single(_results.Read().Entries).Accuracy);
 
-        var half = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, "testo altro", CancellationToken.None);
+        var half = await _runner.RunAsync(Audio(1), 1, "pc-1", "2.0.0", "it", null, "testo altro", CancellationToken.None);
         Assert.Equal(50, Assert.Single(half).Accuracy);
 
-        var none = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
+        var none = await _runner.RunAsync(Audio(1), 1, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
         Assert.Null(Assert.Single(none).Accuracy);
     }
 
