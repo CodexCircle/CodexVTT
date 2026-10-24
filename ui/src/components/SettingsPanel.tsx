@@ -143,6 +143,11 @@ export function SettingsPanel({ app }: { app: CodexVttState }) {
           {t('useGpu')}
         </label>
         <p className="muted">{t('useGpuText')}</p>
+        {app.gpuAtStart !== undefined && (s.useGpu !== false) !== app.gpuAtStart && (
+          <p role="status" className="badge badge--warn">
+            {t('useGpuRestart')}
+          </p>
+        )}
       </div>
 
       <div className="card">

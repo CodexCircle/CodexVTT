@@ -88,6 +88,7 @@ const it = {
   gpu: 'Scheda video',
   gpuNone: 'nessuna compatibile con Vulkan: Whisper usa la CPU',
   useGpu: 'Usa la scheda video (GPU) per Whisper quando disponibile',
+  useGpuRestart: 'Riavvia CodexVTT per applicare il cambio: finché non lo riavvii, Whisper continua a usare il motore di prima.',
   useGpuText: 'Funziona con le schede NVIDIA, AMD e Intel che hanno i driver Vulkan e ripiega da sola sulla CPU. Si applica al prossimo avvio; nel risultato vedi quale runtime è stato usato («Vulkan» o «Cpu»). Parakeet, Canary e Cohere girano sempre sulla CPU.',
   uploading: 'Caricamento dei file sul server…',
 
@@ -500,6 +501,7 @@ const en: Record<MessageKey, string> = {
   gpu: 'Graphics card',
   gpuNone: 'none compatible with Vulkan: Whisper uses the CPU',
   useGpu: 'Use the graphics card (GPU) for Whisper when available',
+  useGpuRestart: 'Restart CodexVTT to apply the change: until you do, Whisper keeps using the previous engine.',
   useGpuText: 'Works with NVIDIA, AMD and Intel cards that have Vulkan drivers and falls back to the CPU on its own. Applies at the next start; the result shows which runtime was used (“Vulkan” or “Cpu”). Parakeet, Canary and Cohere always run on the CPU.',
   uploading: 'Uploading the files to the server…',
 
