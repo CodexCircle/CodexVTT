@@ -132,6 +132,20 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Avvia coda' })).toBeInTheDocument();
   });
 
+  it('offers «Avvia coda» in the side list when a file is open after the queue was stopped', async () => {
+    const { user } = setup({ installed: ['base'], batchFiles: ['a.mp3', 'b.mp3'], tick: 5, jobStep: 10 });
+
+    await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
+    await user.click(await screen.findByRole('button', { name: 'Avvia coda' }));
+    await user.click(await screen.findByRole('button', { name: 'Annulla' }));
+    await screen.findByText('Trascrizione annullata.');
+
+    await user.click(within(screen.getByRole('listitem', { name: 'b.mp3' })).getAllByRole('button')[0]);
+
+    await user.click(await screen.findByRole('button', { name: 'Avvia coda' }));
+    expect(await screen.findByRole('button', { name: 'Annulla' })).toBeInTheDocument();
+  });
+
   it('shows «In pausa» in the file list while the job is paused, like the file view does', async () => {
     const { user } = setup({ installed: ['base'], batchFiles: ['a.mp3', 'b.mp3'], tick: 20, jobStep: 5 });
 
