@@ -217,7 +217,7 @@ public sealed class BenchmarkAudioPreparerTests : IDisposable
 
     public void Dispose() => _dir.Dispose();
 
-    private BenchmarkClip Clip(string? noiseSource = null) =>
+    private static BenchmarkClip Clip(string? noiseSource = null) =>
         new("t-1", "it", noiseSource is null ? BenchmarkScenario.Clean : BenchmarkScenario.Noisy, "t", "t.wav", "https://archive.org/download/x/t.wav",
             1, new string('a', 64), 3, "testo", noiseSource, noiseSource is null ? 0 : 10);
 
