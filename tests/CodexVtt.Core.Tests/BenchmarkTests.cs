@@ -185,6 +185,9 @@ public sealed class BenchmarkRunnerTests : IDisposable
         await _models.ImportAsync(_dir.File("small.bin", SmallContent));
     }
 
+    private static BenchmarkJob Job(string audioId, double seconds, string? text = null, string? clipId = null, string language = "it", string? scenario = null) =>
+        new(clipId, language, scenario, audioId, seconds, text);
+
     private string Audio(double seconds) => _audio.Register(_dir.File($"ref{seconds}.wav", TestData.Wav(16000, 1, seconds))).AudioId;
 
     [Fact]
@@ -194,7 +197,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
         var events = new List<BenchmarkProgress>();
         _runner.Progress += events.Add;
 
-        var outcomes = await _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", 4, null, CancellationToken.None);
+        var outcomes = await _runner.RunAsync([Job(Audio(4), 4)], "pc-1", "2.0.0", 4, CancellationToken.None);
 
         Assert.Equal(["base", "small"], outcomes.Select(o => o.ModelId));
         Assert.All(outcomes, o => Assert.Equal("done", o.Phase));
@@ -214,7 +217,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
         await InstallAsync();
         _results.Record("pc-1", new BenchmarkEntry("medium", "sha-medium", "Cpu", 4, 4, 1, 2, DateTimeOffset.UtcNow, "2.0.0"));
 
-        await _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", 4, null, CancellationToken.None);
+        await _runner.RunAsync([Job(Audio(4), 4)], "pc-1", "2.0.0", 4, CancellationToken.None);
 
         Assert.Equal(["base", "small"], _results.Read().Entries.Select(e => e.ModelId).Order());
     }
@@ -226,7 +229,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
         _engine.Delay = TimeSpan.FromMilliseconds(300);
         var running = _service.Start(Audio(2), "base", new TranscriptionOptions("it"));
 
-        var error = await Assert.ThrowsAsync<CodexVttException>(() => _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, null, CancellationToken.None));
+        var error = await Assert.ThrowsAsync<CodexVttException>(() => _runner.RunAsync([Job(Audio(4), 4)], "pc-1", "2.0.0", null, CancellationToken.None));
         Assert.Equal(ErrorCodes.TranscriptionBusy, error.Code);
         Assert.False(_runner.Running);
         _service.Cancel(running.JobId);
@@ -234,7 +237,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
             await Task.Delay(10);
 
         _engine.Delay = TimeSpan.FromMilliseconds(150);
-        var test = _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
+        var test = _runner.RunAsync([Job(Audio(4), 4)], "pc-1", "2.0.0", null, CancellationToken.None);
         await Task.Delay(40);
         Assert.True(_runner.Running);
         var other = Assert.Throws<CodexVttException>(() => _service.Start(Audio(2), "base", new TranscriptionOptions("it")));
@@ -252,7 +255,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
             if (p.Phase == "done" && p.ModelId == "base") cts.Cancel();
         };
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, null, cts.Token));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => _runner.RunAsync([Job(Audio(4), 4)], "pc-1", "2.0.0", null, cts.Token));
 
         Assert.False(_runner.Running);
         Assert.Equal(["base"], _results.Read().Entries.Select(e => e.ModelId));
@@ -264,7 +267,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
         await InstallAsync();
         _engine.FailFor = "base";
 
-        var outcomes = await _runner.RunAsync(Audio(4), 4, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
+        var outcomes = await _runner.RunAsync([Job(Audio(4), 4)], "pc-1", "2.0.0", null, CancellationToken.None);
 
         Assert.Equal("failed", outcomes[0].Phase);
         Assert.Equal(ErrorCodes.TranscriptionFailed, outcomes[0].ErrorCode);
@@ -273,11 +276,46 @@ public sealed class BenchmarkRunnerTests : IDisposable
     }
 
     [Fact]
+    public async Task Measures_every_clip_with_every_model_and_records_the_language_and_scenario()
+    {
+        await InstallAsync();
+        var events = new List<BenchmarkProgress>();
+        _runner.Progress += events.Add;
+        // Il motore di prova dice sempre «testo»: contro «testo» è perfetto, contro «altro» sbaglia l'unica parola.
+        BenchmarkJob[] jobs = [Job(Audio(1), 1, "testo", "it-clean-1", "it", "clean"), Job(Audio(1), 1, "altro", "en-noisy-1", "en", "noisy")];
+
+        var outcomes = await _runner.RunAsync(jobs, "pc-1", "2.0.0", null, CancellationToken.None);
+
+        Assert.Equal([("base", "it-clean-1"), ("base", "en-noisy-1"), ("small", "it-clean-1"), ("small", "en-noisy-1")], outcomes.Select(o => (o.ModelId, o.ClipId)));
+        Assert.All(events, e => Assert.Equal(4, e.Total));
+        Assert.Equal([100.0, 0.0, 100.0, 0.0], outcomes.Select(o => o.Accuracy));
+        var saved = _results.Read().Entries;
+        Assert.Equal(4, saved.Count);
+        var english = saved.Single(e => e.ModelId == "base" && e.ClipId == "en-noisy-1");
+        Assert.Equal("en", english.Language);
+        Assert.Equal("noisy", english.Scenario);
+        Assert.Equal(0, english.Accuracy);
+    }
+
+    [Fact]
+    public async Task A_file_chosen_by_the_user_is_saved_without_clip_language_or_scenario()
+    {
+        await _models.ImportAsync(_dir.File("base.bin", BaseContent));
+
+        await _runner.RunAsync([Job(Audio(1), 1, null, null, "it")], "pc-1", "2.0.0", null, CancellationToken.None);
+
+        var entry = Assert.Single(_results.Read().Entries);
+        Assert.Null(entry.ClipId);
+        Assert.Null(entry.Language);
+        Assert.Null(entry.Scenario);
+    }
+
+    [Fact]
     public async Task Models_not_installed_are_skipped()
     {
         await _models.ImportAsync(_dir.File("base.bin", BaseContent));
 
-        var outcomes = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
+        var outcomes = await _runner.RunAsync([Job(Audio(2), 2)], "pc-1", "2.0.0", null, CancellationToken.None);
 
         Assert.Equal("base", Assert.Single(outcomes).ModelId);
     }
@@ -289,14 +327,14 @@ public sealed class BenchmarkRunnerTests : IDisposable
 
         // Un secondo di audio sta in una sola finestra: il motore di prova dice «testo» una volta sola (con più finestre lo ripeterebbe).
         // Il motore di prova dice sempre «testo»: contro «Testo.» è identico, contro «testo altro» manca una parola su due.
-        var exact = await _runner.RunAsync(Audio(1), 1, "pc-1", "2.0.0", "it", null, "Testo.", CancellationToken.None);
+        var exact = await _runner.RunAsync([Job(Audio(1), 1, "Testo.")], "pc-1", "2.0.0", null, CancellationToken.None);
         Assert.Equal(100, Assert.Single(exact).Accuracy);
         Assert.Equal(100, Assert.Single(_results.Read().Entries).Accuracy);
 
-        var half = await _runner.RunAsync(Audio(1), 1, "pc-1", "2.0.0", "it", null, "testo altro", CancellationToken.None);
+        var half = await _runner.RunAsync([Job(Audio(1), 1, "testo altro")], "pc-1", "2.0.0", null, CancellationToken.None);
         Assert.Equal(50, Assert.Single(half).Accuracy);
 
-        var none = await _runner.RunAsync(Audio(1), 1, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
+        var none = await _runner.RunAsync([Job(Audio(1), 1)], "pc-1", "2.0.0", null, CancellationToken.None);
         Assert.Null(Assert.Single(none).Accuracy);
     }
 
@@ -305,7 +343,7 @@ public sealed class BenchmarkRunnerTests : IDisposable
     {
         await _models.ImportAsync(_dir.File("base.bin", BaseContent));
 
-        var outcomes = await _runner.RunAsync(Audio(2), 2, "pc-1", "2.0.0", "it", null, null, CancellationToken.None);
+        var outcomes = await _runner.RunAsync([Job(Audio(2), 2)], "pc-1", "2.0.0", null, CancellationToken.None);
 
         Assert.Single(outcomes);
         Assert.Equal(2, _engine.Sessions); // prova a vuoto + misura
@@ -355,7 +393,7 @@ public class BenchmarkRecommenderTests
     private static (BenchmarkEntry Entry, ModelDescriptor Model) Measured(string id, double speed, double? accuracy, int quality = 1, bool preview = false)
     {
         var model = TestData.Catalog(models: [(id, TestData.Bytes(id, 100), 2, 2, 0)]).Models[0] with { QualityRank = quality, Preview = preview };
-        return (new BenchmarkEntry(id, "x", "Cpu", null, 60, 2, speed, DateTimeOffset.UtcNow, "2.0.0", accuracy), model);
+        return (new BenchmarkEntry(id, "x", "Cpu", null, 60, 2, speed, DateTimeOffset.UtcNow, "2.0.0", accuracy, accuracy is null ? null : "it-clean-1", accuracy is null ? null : "it", accuracy is null ? null : "clean"), model);
     }
 
     [Fact]

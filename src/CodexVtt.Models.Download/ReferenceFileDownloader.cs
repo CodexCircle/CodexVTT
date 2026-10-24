@@ -5,8 +5,8 @@ using CodexVtt.Core.Errors;
 namespace CodexVtt.Models.Download;
 
 /// <summary>
-/// Scarica il file di riferimento del Test bench (ADR-0006, terza eccezione). Solo l'indirizzo fissato in
-/// <see cref="BenchmarkReference"/>, host in allowlist (archive.org e suoi nodi), redirect controllati uno a uno,
+/// Scarica i file di riferimento del Test bench (ADR-0006, terza eccezione). Solo gli indirizzi fissati in
+/// <see cref="BenchmarkClips"/>, host in allowlist (archive.org e suoi nodi), redirect controllati uno a uno,
 /// installazione solo se dimensione e SHA-256 coincidono. La richiesta non contiene dati dell'utente.
 /// </summary>
 public sealed class ReferenceFileDownloader : IReferenceFileProvider
@@ -15,31 +15,25 @@ public sealed class ReferenceFileDownloader : IReferenceFileProvider
     private readonly HttpClient _http;
     private readonly HostAllowlist _allowlist;
     private readonly string _directory;
-    private readonly Uri _url;
-    private readonly string _sha256;
-    private readonly long _size;
 
-    public ReferenceFileDownloader(HttpClient http, string directory, HostAllowlist? allowlist = null, Uri? url = null, string? sha256 = null, long? size = null)
+    public ReferenceFileDownloader(HttpClient http, string directory, HostAllowlist? allowlist = null)
     {
         _http = http;
         _directory = directory;
         _allowlist = allowlist ?? new HostAllowlist([BenchmarkReference.Host]);
-        _url = url ?? new Uri(BenchmarkReference.Url);
-        _sha256 = (sha256 ?? BenchmarkReference.Sha256).ToLowerInvariant();
-        _size = size ?? BenchmarkReference.SizeBytes;
     }
 
-    private string TargetPath => Path.Combine(_directory, BenchmarkReference.FileName);
+    private string TargetPath(BenchmarkClip clip) => Path.Combine(_directory, clip.FileName);
 
-    public string? CachedPath()
+    public string? CachedPath(BenchmarkClip clip)
     {
-        var path = TargetPath;
+        var path = TargetPath(clip);
         try
         {
-            if (!File.Exists(path) || new FileInfo(path).Length != _size)
+            if (!File.Exists(path) || new FileInfo(path).Length != clip.SizeBytes)
                 return null;
             using var stream = File.OpenRead(path);
-            return Convert.ToHexStringLower(SHA256.HashData(stream)) == _sha256 ? path : null;
+            return Convert.ToHexStringLower(SHA256.HashData(stream)) == clip.Sha256.ToLowerInvariant() ? path : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -47,41 +41,42 @@ public sealed class ReferenceFileDownloader : IReferenceFileProvider
         }
     }
 
-    public async Task<string> EnsureAsync(CancellationToken ct)
+    public async Task<string> EnsureAsync(BenchmarkClip clip, CancellationToken ct)
     {
-        if (CachedPath() is { } cached)
+        if (CachedPath(clip) is { } cached)
             return cached;
 
         Directory.CreateDirectory(_directory);
-        var partial = TargetPath + ".part";
+        var target = TargetPath(clip);
+        var partial = target + ".part";
         try
         {
-            using var response = await SendFollowingRedirectsAsync(ct).ConfigureAwait(false);
+            using var response = await SendFollowingRedirectsAsync(new Uri(clip.Url), ct).ConfigureAwait(false);
             if (!response.IsSuccessStatusCode)
                 throw new CodexVttException(ErrorCodes.DownloadFailed, $"Download non riuscito ({(int)response.StatusCode}).");
 
             using var hasher = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
             long total = 0;
             await using (var source = await response.Content.ReadAsStreamAsync(ct).ConfigureAwait(false))
-            await using (var target = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
+            await using (var output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 16, useAsync: true))
             {
                 var buffer = new byte[1 << 16];
                 int read;
                 while ((read = await source.ReadAsync(buffer, ct).ConfigureAwait(false)) > 0)
                 {
                     total += read;
-                    if (total > _size)
+                    if (total > clip.SizeBytes)
                         break; // più grande del previsto: non è il file fissato
                     hasher.AppendData(buffer, 0, read);
-                    await target.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
+                    await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
                 }
             }
 
-            if (total != _size || Convert.ToHexStringLower(hasher.GetHashAndReset()) != _sha256)
+            if (total != clip.SizeBytes || Convert.ToHexStringLower(hasher.GetHashAndReset()) != clip.Sha256.ToLowerInvariant())
                 throw new CodexVttException(ErrorCodes.ModelHashMismatch, "Il file scaricato non corrisponde a quello atteso: scartato.");
 
-            File.Move(partial, TargetPath, overwrite: true);
-            return TargetPath;
+            File.Move(partial, target, overwrite: true);
+            return target;
         }
         catch (HttpRequestException ex)
         {
@@ -100,9 +95,9 @@ public sealed class ReferenceFileDownloader : IReferenceFileProvider
         }
     }
 
-    private async Task<HttpResponseMessage> SendFollowingRedirectsAsync(CancellationToken ct)
+    private async Task<HttpResponseMessage> SendFollowingRedirectsAsync(Uri url, CancellationToken ct)
     {
-        var current = _url;
+        var current = url;
         for (var hop = 0; hop <= MaxRedirects; hop++)
         {
             _allowlist.EnsureAllowed(current);

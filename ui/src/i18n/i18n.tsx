@@ -22,6 +22,9 @@ export function createI18n(locale: Locale) {
   const numberLocale = locale === 'it' ? 'it-IT' : 'en-US';
   const t = (key: MessageKey, params?: Record<string, string | number>) => format(messages[locale][key], params);
 
+  /** Nome della lingua nella lingua dell'interfaccia (it → Italiano); un codice sconosciuto resta com'è. */
+  const languageName = (code: string) => messages[locale][`lang_${code}` as MessageKey] ?? code;
+
   const formatBytes = (bytes: number) =>
     bytes >= 1e9
       ? `${(bytes / 1e9).toLocaleString(numberLocale, { maximumFractionDigits: 1 })} GB`
@@ -82,9 +85,10 @@ export function createI18n(locale: Locale) {
       case 'recommended':
         return t('reason_recommended', { model: a.model });
       case 'benchmark_recommended':
-        return a.accuracy !== undefined
-          ? t('reason_benchmark_accuracy', { model: a.model, accuracy: a.accuracy, speed: a.speed })
-          : t('reason_benchmark_speed', { model: a.model, speed: a.speed });
+        if (a.accuracy === undefined) return t('reason_benchmark_speed', { model: a.model, speed: a.speed });
+        return a.language === undefined || a.language === 'auto'
+          ? t('reason_benchmark_accuracy_auto', { model: a.model, accuracy: a.accuracy, speed: a.speed })
+          : t('reason_benchmark_accuracy', { model: a.model, accuracy: a.accuracy, speed: a.speed, language: languageName(a.language) });
       case 'none_compatible':
         return t('reason_none_compatible');
       default:
@@ -110,7 +114,7 @@ export function createI18n(locale: Locale) {
     return t(`issue_${issue}` as MessageKey);
   };
 
-  return { locale, t, formatBytes, formatMemory, formatDuration, formatRemaining, formatDate, formatShortDate, describeError, reason, issueText };
+  return { locale, t, languageName, formatBytes, formatMemory, formatDuration, formatRemaining, formatDate, formatShortDate, describeError, reason, issueText };
 }
 
 export type I18n = ReturnType<typeof createI18n>;

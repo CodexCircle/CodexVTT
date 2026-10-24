@@ -72,7 +72,7 @@ public sealed partial class BridgeDispatcher : IDisposable
         {
             ["system.info"] = (_, _) => Task.FromResult<object?>(SystemInfo()),
             ["models.list"] = (_, _) => Task.FromResult<object?>(ListModels()),
-            ["models.recommend"] = (_, _) => Task.FromResult<object?>(Recommend()),
+            ["models.recommend"] = (p, _) => Task.FromResult<object?>(Recommend(p is { ValueKind: JsonValueKind.Object } ? Read<RecommendRequest>(p).Language : null)),
             ["models.download"] = (p, _) => Task.FromResult<object?>(StartDownload(Read<ModelRef>(p).ModelId)),
             ["models.cancelDownload"] = (p, _) => Task.FromResult<object?>(CancelDownload(Read<ModelRef>(p).ModelId)),
             ["models.verify"] = async (p, ct) => ToDto(await _models.VerifyAsync(RequireModel(Read<ModelRef>(p).ModelId), null, ct).ConfigureAwait(false)),
@@ -232,9 +232,11 @@ public sealed partial class BridgeDispatcher : IDisposable
             s.Model, hardware, _models.Catalog.Selection, maxCost, s.State is not ModelState.NotInstalled))).ToList();
     }
 
-    private object Recommend()
+    /// <param name="requestedLanguage">La lingua scelta in Home; senza, quella delle impostazioni.</param>
+    private object Recommend(string? requestedLanguage)
     {
-        var hardware = _hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu);
+        var settings = _settings.Load();
+        var hardware = _hardware.Probe(_paths.Models).WithGpuAcceleration(settings.UseGpu);
         var recommendation = ModelSelector.Recommend(hardware, _models.Catalog, _models.InstalledIds());
 
         // Con misure valide del Test bench il consiglio viene da quelle, non dalle regole sull'hardware.
@@ -242,7 +244,10 @@ public sealed partial class BridgeDispatcher : IDisposable
         var measured = _benchmarkResults.Views(fingerprint, InstalledIdentity, version)
             .Where(v => v.IsValid && _models.Catalog.Find(v.Entry.ModelId) is not null)
             .Select(v => (v.Entry, Model: _models.Catalog.Find(v.Entry.ModelId)!));
-        if (BenchmarkRecommender.Pick(measured) is { } picked)
+        // Il consiglio segue la lingua scelta in Home; con «auto» vale la media delle lingue misurate.
+        var chosen = requestedLanguage ?? settings.Language;
+        var language = chosen == "auto" ? null : chosen;
+        if (BenchmarkRecommender.Pick(measured, language) is { } picked)
         {
             var args = new List<(string, string)>
             {
@@ -250,8 +255,11 @@ public sealed partial class BridgeDispatcher : IDisposable
                 ("model", picked.Model.DisplayName),
                 ("speed", picked.Entry.Speed.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)),
             };
-            if (picked.ByAccuracy && picked.Entry.Accuracy is { } accuracy)
+            if (picked.ByAccuracy && picked.Accuracy is { } accuracy)
+            {
                 args.Add(("accuracy", accuracy.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)));
+                args.Add(("language", language ?? "auto"));
+            }
             var reasons = recommendation.Reasons
                 .Where(r => r.Code != SelectionReason.Recommended && r.Code != SelectionReason.NoneCompatible)
                 .Append(new SelectionReason(SelectionReason.BenchmarkRecommended, args.ToDictionary(a => a.Item1, a => a.Item2)))

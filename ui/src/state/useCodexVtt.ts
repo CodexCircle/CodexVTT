@@ -74,7 +74,7 @@ export function useCodexVtt(client: BridgeClient) {
   const [updates, setUpdates] = useState<UpdateStatus>();
   const [updateProgress, setUpdateProgress] = useState<number>();
   const [checkingUpdates, setCheckingUpdates] = useState(false);
-  const [benchmark, setBenchmark] = useState<BenchmarkState>({ running: false, entries: [] });
+  const [benchmark, setBenchmark] = useState<BenchmarkState>({ running: false, entries: [], reliability: [] });
   const [benchmarkProgress, setBenchmarkProgress] = useState<BenchmarkProgress>();
   const [estimate, setEstimate] = useState<BenchmarkEstimate>();
   const queue = queueState.items;
@@ -90,8 +90,12 @@ export function useCodexVtt(client: BridgeClient) {
     }
   }, []);
 
+  /** Lingua scelta in Home: il modello consigliato dal Test bench cambia con la lingua. */
+  const recommendLanguage = useRef<string | undefined>(undefined);
+
   const refreshModels = useCallback(async () => {
-    const [list, rec] = await Promise.all([client.call('models.list'), client.call('models.recommend')]);
+    const language = recommendLanguage.current;
+    const [list, rec] = await Promise.all([client.call('models.list'), client.call('models.recommend', language ? { language } : undefined)]);
     setModels(list);
     setRecommendation(rec);
   }, [client]);
@@ -108,7 +112,7 @@ export function useCodexVtt(client: BridgeClient) {
           client.call('queue.get'),
           client.call('transcription.active'),
           client.call('updates.status'),
-          client.call('benchmark.get').catch(() => ({ running: false, entries: [] }) as BenchmarkState),
+          client.call('benchmark.get').catch(() => ({ running: false, entries: [], reliability: [] }) as BenchmarkState),
         ]);
         setBenchmark(bench);
         setSystem(info);
@@ -286,6 +290,18 @@ export function useCodexVtt(client: BridgeClient) {
     }
   }, [autoCheck, autoChecked, checkUpdates]);
 
+  const setRecommendLanguage = useCallback(
+    (language: string) => {
+      if (recommendLanguage.current === language) return;
+      recommendLanguage.current = language;
+      void client
+        .call('models.recommend', { language })
+        .then(setRecommendation)
+        .catch(() => undefined);
+    },
+    [client],
+  );
+
   const saveSettings = useCallback(
     (next: AppSettings) =>
       guard(async () => {
@@ -300,6 +316,8 @@ export function useCodexVtt(client: BridgeClient) {
     readyModels,
     activeModel,
     recommendation,
+    /** Dice quale lingua è scelta in Home, per consigliare il modello migliore per quella lingua. */
+    setRecommendLanguage,
     settings,
     gpuAtStart: gpuAtStart.current,
     audio,

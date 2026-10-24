@@ -20,11 +20,14 @@ interface Props {
 
 /** «Nuova trascrizione»: scelta dei file, modello e lingua, avvio. Durante il lavoro mostra l'avanzamento. */
 export function StartPage({ app, language, onLanguage, needsLanguage, running, onPick, onOpenModels, onStart, onStartQueue }: Props) {
-  const { t, formatBytes, formatDuration } = useI18n();
+  const { t, formatBytes, formatDuration, reason } = useI18n();
   const inQueue = app.queue.length > 0;
   const pending = app.queue.filter((i) => i.status === 'queued' || (i.status === 'failed' && i.audioId)).length;
   const queuedDuration = app.queue.reduce((sum, i) => sum + (i.info?.duration ?? 0), 0);
   const { formatRemaining, formatShortDate } = useI18n();
+  // Con misure del Test bench, il modello migliore per la lingua scelta (o la media delle lingue con «auto»).
+  const benchReason = app.recommendation?.basis === 'benchmark' ? app.recommendation.reasons.find((r) => r.code === 'benchmark_recommended') : undefined;
+  const recommendedReady = app.readyModels.find((m) => m.id === app.recommendation?.recommendedId);
   // Stima in anticipo dalla misura del Test bench per il modello scelto; senza misura valida nessun numero inventato.
   const estimateLine =
     app.estimate?.basis === 'benchmark' && app.estimate.seconds !== undefined && app.estimate.seconds > 0 ? (
@@ -94,6 +97,16 @@ export function StartPage({ app, language, onLanguage, needsLanguage, running, o
               </option>
             ))}
           </select>
+          {benchReason && (
+            <p className="muted" data-testid="language-recommendation">
+              {reason(benchReason)}{' '}
+              {recommendedReady && recommendedReady.id !== app.activeModel?.id && (
+                <button type="button" className="secondary" disabled={running} onClick={() => void app.selectModel(recommendedReady.id)}>
+                  {t('useModel')}
+                </button>
+              )}
+            </p>
+          )}
         </div>
       </div>
       {needsLanguage && (

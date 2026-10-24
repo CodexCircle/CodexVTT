@@ -4,6 +4,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using CodexVtt.Bridge;
 using CodexVtt.Core.Audio;
+using CodexVtt.Core.Benchmark;
 using CodexVtt.Core.Errors;
 using CodexVtt.Core.History;
 using CodexVtt.Core.Models;
@@ -299,16 +300,33 @@ public sealed class BridgeDispatcherTests : IDisposable
         Ok(await Call("models.import"));
         var info = Ok(await Call("benchmark.reference"));
         Assert.Equal(0, _reference.Downloads); // mostrare l'indirizzo non scarica nulla
-        Assert.StartsWith("https://archive.org/download/", info.GetProperty("url").GetString());
-        Assert.Equal(64, info.GetProperty("sha256").GetString()!.Length);
+        var file = info.GetProperty("files").EnumerateArray().First();
+        Assert.StartsWith("https://archive.org/download/", file.GetProperty("url").GetString());
+        Assert.Equal(64, file.GetProperty("sha256").GetString()!.Length);
         Assert.False(info.GetProperty("cached").GetBoolean());
+        Assert.Equal(BenchmarkClips.All.Count, info.GetProperty("clips").GetArrayLength());
+        Assert.Equal(info.GetProperty("totalBytes").GetInt64(), info.GetProperty("missingBytes").GetInt64());
 
         Ok(await Call("benchmark.start", new { useReference = true }));
         await _shell.WaitForEventAsync("benchmark.completed");
 
-        Assert.Equal(1, _reference.Downloads);
-        Assert.True(Ok(await Call("benchmark.reference")).GetProperty("cached").GetBoolean());
-        Assert.Single(Ok(await Call("benchmark.get")).GetProperty("entries").EnumerateArray());
+        // Un file per brano pulito: il brano rumoroso usa quello del suo originale.
+        Assert.Equal(BenchmarkClips.Downloads().Count, _reference.Downloads);
+        var after = Ok(await Call("benchmark.reference"));
+        Assert.True(after.GetProperty("cached").GetBoolean());
+        Assert.Equal(0, after.GetProperty("missingBytes").GetInt64());
+        var snapshot = Ok(await Call("benchmark.get"));
+        var entries = snapshot.GetProperty("entries").EnumerateArray().ToList();
+        Assert.Equal(BenchmarkClips.All.Count, entries.Count);
+        Assert.Equal(BenchmarkClips.All.Select(c => c.Id).Order(), entries.Select(e => e.GetProperty("clipId").GetString()!).Order());
+        Assert.Contains(entries, e => e.GetProperty("scenario").GetString() == "noisy" && e.GetProperty("language").GetString() == "it");
+        var reliability = Assert.Single(snapshot.GetProperty("reliability").EnumerateArray());
+        Assert.Equal("base", reliability.GetProperty("modelId").GetString());
+        Assert.Equal("it", reliability.GetProperty("language").GetString());
+        // Il consiglio viene dalle misure, per la lingua chiesta.
+        var recommendation = Ok(await Call("models.recommend", new { language = "it" }));
+        Assert.Equal("benchmark", recommendation.GetProperty("basis").GetString());
+        Assert.Contains(recommendation.GetProperty("reasons").EnumerateArray(), r => r.GetProperty("code").GetString() == "benchmark_recommended");
     }
 
     [Fact]
@@ -554,9 +572,9 @@ public sealed class BridgeDispatcherTests : IDisposable
 
         public int Downloads { get; private set; }
 
-        public string? CachedPath() => _path;
+        public string? CachedPath(CodexVtt.Core.Benchmark.BenchmarkClip clip) => _path;
 
-        public Task<string> EnsureAsync(CancellationToken ct)
+        public Task<string> EnsureAsync(CodexVtt.Core.Benchmark.BenchmarkClip clip, CancellationToken ct)
         {
             Downloads++;
             return Task.FromResult(_path ??= dir.File("ufficiale.wav", TestData.Wav(16000, 1, 12)));
