@@ -40,12 +40,22 @@ Se il PC ha una scheda video NVIDIA, AMD o Intel con i driver aggiornati, Whispe
 
 ## Trascrivere
 
-1. Sezione **Trascrivi** → **Scegli un file audio…** (WAV, MP3, M4A, AAC, WMA, FLAC; OGG/Opus se il codec è installato), fino a **4 ore** di durata.
-2. Lascia "Rilevamento automatico" oppure scegli la lingua.
-3. Premi **Avvia trascrizione**. Puoi annullare in qualunque momento. Durante il lavoro vedi la percentuale e il **tempo rimanente**: è una stima calcolata dalla velocità reale del tuo PC con quel modello, compare dopo qualche secondo e con una coda indica anche il tempo per tutti i file.
-4. Leggi il testo o la vista per segmenti con i tempi. Sotto il titolo trovi il modello usato.
+La schermata **Home** ha a sinistra l'elenco dei file (la coda di lavoro e, sotto, le trascrizioni **Recenti**), al centro l'editor e a destra le proprietà del file scelto.
+
+1. In **Home** premi **Scegli file** (WAV, MP3, M4A, AAC, WMA, FLAC; OGG/Opus se il codec è installato), fino a **4 ore** di durata ciascuno. Con più file nasce una coda.
+2. Scegli il modello e la lingua (oppure lascia «Rilevamento automatico»).
+3. Premi **Avvia trascrizione** (o **Avvia coda**). **Pausa** e **Annulla** sono in basso a sinistra. Durante il lavoro vedi la percentuale e il **tempo rimanente**: è una stima calcolata dalla velocità reale del tuo PC con quel modello, compare dopo qualche secondo e con una coda indica anche il tempo per tutti i file.
+4. Scegli un file dall'elenco per vederne subito la trascrizione, senza aprirlo: un file in coda o in lavorazione mostra il suo stato, uno finito mostra l'editor. **Nuova trascrizione** riporta alla scelta dei file.
 
 Whisper può sbagliare o inventare frasi su silenzi o musica: ricontrolla i passaggi importanti.
+
+### L'editor
+
+- Ogni **segmento** ha il suo testo, modificabile, e i tempi di inizio e fine: cliccarli sposta il cursore della timeline. Con **Annulla modifica** e **Ripristina modifica** torni indietro; il pulsante tra due segmenti li unisce.
+- Il **parlante** di ogni segmento si assegna a mano (clic sul nome a sinistra); in basso, **+** aggiunge un parlante, e nel pannello a destra si rinominano. Il riconoscimento automatico dei parlanti non c'è ancora e i parlanti non finiscono nei file esportati.
+- In basso la **timeline** mostra i segmenti nel tempo, con zoom e velocità di riproduzione. Per ora il lettore muove soltanto il cursore: l'audio non si ascolta ancora.
+- **Controllo ortografico** (pannello a destra) usa un piccolo dizionario locale degli errori più comuni («perchè», «sopratutto», «un pò»…): **Accetta** applica la correzione, **Ignora** la scarta.
+- **Copia testo** copia il testo corretto. Le correzioni vivono solo nella finestra: **Esporta** salva il testo originale, e l'indicatore in alto lo ricorda con «Modifiche non salvate».
 
 ## Cronologia
 
@@ -54,7 +64,7 @@ Ogni trascrizione completata viene salvata automaticamente nella cartella **Docu
 - un `.txt` con il testo, che puoi aprire con qualunque editor;
 - un `.json` con i segmenti e i tempi, che CodexVTT usa per riaprire la trascrizione.
 
-Dalla sezione **Cronologia** puoi riaprire una trascrizione, esportarla di nuovo, eliminarla oppure aprire la cartella in Esplora file. Con **Cambia cartella…** scegli dove salvarle.
+Dalla sezione **Cronologia** (o dall'elenco **Recenti** di Home) puoi riaprire una trascrizione, esportarla di nuovo, eliminarla oppure aprire la cartella in Esplora file. Con **Cambia cartella…** scegli dove salvarle.
 
 Se su Windows è attivo **Accesso alle cartelle controllato** (Sicurezza di Windows → Protezione da virus e minacce → Protezione ransomware), Defender può impedire a CodexVTT di scrivere in `Documenti`. In quel caso CodexVTT te lo dice, mette la trascrizione al sicuro in `%LOCALAPPDATA%\CodexVTT.Data\history-recovery` e ti propone **Cambia cartella…**. Per usare `Documenti` consenti `CodexVtt.App.exe` tra le app consentite; lo stesso vale per l'export nella cartella proposta dal dialogo di salvataggio.
 
@@ -62,13 +72,13 @@ Se la cartella è sincronizzata da OneDrive o da un servizio simile, le trascriz
 
 ## Esportare
 
-**Esporta TXT** salva il testo semplice, **Esporta SRT** e **Esporta VTT** salvano i sottotitoli con i tempi. Nelle impostazioni puoi aggiungere un'intestazione con modello, lingua e data.
+Il pulsante **Esporta** in alto a destra apre il menu: **Esporta TXT** salva il testo semplice, **Esporta SRT** e **Esporta VTT** salvano i sottotitoli con i tempi (l'SRT è anche in **Sottotitoli**, nel pannello a destra). Nelle impostazioni puoi aggiungere un'intestazione con modello, lingua e data.
 
 ## Lingua dell'interfaccia
 
 CodexVTT è in italiano e in inglese. Per impostazione predefinita usa la lingua di Windows; puoi cambiarla in **Impostazioni** → **Lingua dell'interfaccia**.
 
-In **Impostazioni** → **Tema** scegli i colori dell'app: **Sabbia** (predefinito, toni beige e tortora) o **Natale** (bordeaux, verde e crema). **Aspetto** decide se usare la versione chiara, quella scura o seguire Windows; ogni tema ha entrambe.
+**Aspetto** (in **Impostazioni**) decide se usare il tema chiaro, quello scuro o seguire Windows; il pulsante con la luna o il sole in alto a destra li alterna al volo.
 
 ## Privacy
 
