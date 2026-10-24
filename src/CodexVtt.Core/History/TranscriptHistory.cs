@@ -56,6 +56,23 @@ public sealed class TranscriptHistory
         }
     }
 
+    /// <summary>
+    /// Sostituisce i segmenti di una trascrizione già salvata (testo corretto o riorganizzato dall'utente) e riscrive
+    /// il .json e il .txt. Modello, durata e data restano quelli della trascrizione originale.
+    /// </summary>
+    public HistoryEntry UpdateSegments(string id, IReadOnlyList<TranscriptSegment> segments, string language = "it")
+    {
+        lock (_gate)
+        {
+            var result = Load(id) with { Segments = segments };
+            var document = new HistoryDocument(Format, FormatVersion, result);
+            WriteAtomic(PathFor(id, ".json"), JsonSerializer.Serialize(document, Json));
+            WriteAtomic(PathFor(id, ".txt"),
+                TranscriptExporter.Render(result, ExportFormat.Txt, new ExportOptions(IncludeHeader: true, Language: language)));
+            return ToEntry(id, result);
+        }
+    }
+
     /// <summary>Elenco dalla più recente; i file non riconosciuti vengono ignorati.</summary>
     public IReadOnlyList<HistoryEntry> List()
     {

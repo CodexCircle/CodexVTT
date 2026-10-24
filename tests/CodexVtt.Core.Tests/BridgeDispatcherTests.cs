@@ -195,6 +195,14 @@ public sealed class BridgeDispatcherTests : IDisposable
         Assert.Equal(ErrorCodes.InvalidRequest, ErrorCode(await Call("collections.reorder", new { id = collectionId, entryIds = Array.Empty<string>() })));
         Assert.Equal(ErrorCodes.InvalidRequest, ErrorCode(await Call("collections.save", new { name = "X", color = "blu" })));
         Assert.Equal(ErrorCodes.HistoryNotFound, ErrorCode(await Call("history.update", new { id = "assente", title = "x" })));
+
+        // Correzioni dell'editor: il testo salvato sostituisce quello della trascrizione.
+        var edited = Ok(await Call("history.saveEdits", new { id = historyId, segments = new[] { new { start = 0.0, end = 2.5, text = " Testo corretto. " } } }));
+        Assert.Equal("Testo corretto.", edited.GetProperty("preview").GetString());
+        var afterEdit = Ok(await Call("history.get", new { id = historyId }));
+        Assert.Equal("Testo corretto.", Assert.Single(afterEdit.GetProperty("segments").EnumerateArray()).GetProperty("text").GetString());
+        Assert.Equal(ErrorCodes.InvalidRequest, ErrorCode(await Call("history.saveEdits", new { id = historyId, segments = Array.Empty<object>() })));
+        Assert.Equal(ErrorCodes.HistoryNotFound, ErrorCode(await Call("history.saveEdits", new { id = "assente", segments = new[] { new { start = 0.0, end = 1.0, text = "x" } } })));
         var listed = Ok(await Call("history.list"));
         var listedEntry = Assert.Single(listed.GetProperty("entries").EnumerateArray());
         Assert.Equal("Lezione 1", listedEntry.GetProperty("title").GetString());

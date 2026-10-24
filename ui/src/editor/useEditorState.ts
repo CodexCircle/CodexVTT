@@ -9,9 +9,10 @@ interface Snapshot {
   speakers: EditSpeaker[];
 }
 
-/** Testo, parlanti e correzioni di una trascrizione aperta, con annulla/ripeti. Vive solo nella UI. */
+/** Testo, parlanti e correzioni di una trascrizione aperta, con annulla/ripeti. Si salva nella cronologia con markSaved dopo history.saveEdits. */
 export function useEditorState(result: TranscriptionResult) {
   const [state, setState] = useState<Snapshot>(() => ({ segments: segmentsFromResult(result), speakers: [firstSpeaker()] }));
+  const [saved, setSaved] = useState(state);
   const [past, setPast] = useState<Snapshot[]>([]);
   const [future, setFuture] = useState<Snapshot[]>([]);
   const [issues, setIssues] = useState<SpellIssue[]>([]);
@@ -33,14 +34,20 @@ export function useEditorState(result: TranscriptionResult) {
   const dropIssues = (segmentId: number) => setIssues((all) => all.filter((i) => i.segmentId !== segmentId));
 
   return {
+    snapshot: state,
     segments: state.segments,
     speakers: state.speakers,
     issues,
     spellStatus,
     reflowStatus,
-    dirty: past.length > 0,
+    dirty: state !== saved,
     canUndo: past.length > 0,
     canRedo: future.length > 0,
+
+    /** Da chiamare dopo aver scritto nella cronologia lo stato passato: da qui in poi le modifiche sono quelle non ancora salvate. */
+    markSaved(snapshot: Snapshot) {
+      setSaved(snapshot);
+    },
 
     editText(index: number, text: string) {
       const current = state.segments[index];
@@ -153,4 +160,5 @@ export function useEditorState(result: TranscriptionResult) {
   };
 }
 
+export type { Snapshot };
 export type EditorState = ReturnType<typeof useEditorState>;

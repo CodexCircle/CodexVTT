@@ -12,6 +12,7 @@ import type {
   HistoryEntry,
   ModelInfo,
   PickedAudio,
+  Segment,
   QueueItem,
   QueueState,
   SystemInfo,
@@ -542,6 +543,17 @@ export function createMockTransport(options: MockOptions = {}): Transport {
           }
         }
         return entry(id, r);
+      }
+      case 'history.saveEdits': {
+        const id = String(payload.id);
+        const r = history.get(id);
+        if (!r) throw { code: 'history_not_found', message: 'not found' };
+        const segments = payload.segments as Segment[];
+        if (!Array.isArray(segments) || segments.length === 0) throw { code: 'invalid_request', message: 'Segmenti non validi.' };
+        const next = { ...r, segments: segments.map((g) => ({ start: g.start, end: g.end, text: g.text.trim() })) };
+        next.text = next.segments.map((g) => g.text).join(' ');
+        history.set(id, next);
+        return entry(id, next);
       }
       case 'collections.save': {
         const name = String(payload.name ?? '').trim();

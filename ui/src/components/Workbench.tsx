@@ -64,6 +64,7 @@ export function Workbench({ app, selection, onDirtyChange, onCopied }: Props) {
       title={title}
       onRename={historyId ? (name) => void app.renameEntry(historyId, name) : undefined}
       onExport={(format) => void app.exportAs(format)}
+      onSave={historyId ? (segments) => app.saveEdits(historyId, segments) : undefined}
       onDirtyChange={onDirtyChange}
       onCopied={onCopied}
     />
