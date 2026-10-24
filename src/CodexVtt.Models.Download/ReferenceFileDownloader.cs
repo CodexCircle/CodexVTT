@@ -33,7 +33,7 @@ public sealed class ReferenceFileDownloader : IReferenceFileProvider
             if (!File.Exists(path) || new FileInfo(path).Length != clip.SizeBytes)
                 return null;
             using var stream = File.OpenRead(path);
-            return Convert.ToHexStringLower(SHA256.HashData(stream)) == clip.Sha256.ToLowerInvariant() ? path : null;
+            return string.Equals(Convert.ToHexStringLower(SHA256.HashData(stream)), clip.Sha256, StringComparison.OrdinalIgnoreCase) ? path : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -72,7 +72,7 @@ public sealed class ReferenceFileDownloader : IReferenceFileProvider
                 }
             }
 
-            if (total != clip.SizeBytes || Convert.ToHexStringLower(hasher.GetHashAndReset()) != clip.Sha256.ToLowerInvariant())
+            if (total != clip.SizeBytes || !string.Equals(Convert.ToHexStringLower(hasher.GetHashAndReset()), clip.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new CodexVttException(ErrorCodes.ModelHashMismatch, "Il file scaricato non corrisponde a quello atteso: scartato.");
 
             File.Move(partial, target, overwrite: true);
