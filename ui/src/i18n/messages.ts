@@ -361,6 +361,10 @@ const it = {
   engineSpellcheck: 'Controllo ortografico: dizionario locale',
   enginePunctuation: 'Punteggiatura e frasi: regole su punteggiatura e tempi (nessun modello IA, per ora)',
   modelMetaShort: '{size} su disco · {quantization} · licenza {license}',
+  reflowRun: 'Punteggiatura e frasi',
+  reflowHint: 'Unisce i segmenti in blocchi più lunghi e corretti usando punteggiatura e tempi. Non usa nessun modello IA; si annulla con «Annulla modifica».',
+  reflowDone: 'Segmenti riorganizzati: da {before} a {after}.',
+  reflowNone: 'Niente da riorganizzare: i segmenti sono già in blocchi adatti.',
 };
 
 export type MessageKey = keyof typeof it;
@@ -718,6 +722,10 @@ const en: Record<MessageKey, string> = {
   engineSpellcheck: 'Spell check: local dictionary',
   enginePunctuation: 'Punctuation and sentences: rules on punctuation and timing (no AI model yet)',
   modelMetaShort: '{size} on disk · {quantization} · {license} license',
+  reflowRun: 'Punctuation and sentences',
+  reflowHint: 'Merges segments into longer, cleaner blocks using punctuation and timing. It uses no AI model; undo with “Undo change”.',
+  reflowDone: 'Segments reorganized: from {before} to {after}.',
+  reflowNone: 'Nothing to reorganize: the segments are already in suitable blocks.',
 };
 
 export type Locale = 'it' | 'en';

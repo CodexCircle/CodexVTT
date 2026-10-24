@@ -131,6 +131,13 @@ export function PropsPanel({ result, title, onRename, onExport, editor }: Props)
         <div className="note" role="status">
           {editor.spellStatus === 'done' && (open.length > 0 ? t('spellFound', { count: open.length }) : t('spellNone'))}
         </div>
+        <button type="button" className="btn sm block" aria-describedby="reflow-note" onClick={editor.reorganize}>
+          <Icon name="spell" />
+          {t('reflowRun')}
+        </button>
+        <div className="note" id="reflow-note" role="status">
+          {editor.reflowStatus ? (editor.reflowStatus.changed ? t('reflowDone', { before: editor.reflowStatus.before, after: editor.reflowStatus.after }) : t('reflowNone')) : t('reflowHint')}
+        </div>
         <div className="issues">
           {open.map((i) => (
             <div className="issue" key={i.uid} id={`issue${i.uid}`}>
