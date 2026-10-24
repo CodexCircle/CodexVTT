@@ -17,6 +17,13 @@ public static class BenchmarkVersion
     /// </summary>
     public const int Revision = 1;
 
+    /// <summary>
+    /// Versioni dei motori di trascrizione (Whisper.net e sherpa-onnx) di cui la <see cref="Revision"/> attuale tiene conto.
+    /// Un test confronta questa riga con Directory.Packages.props: se aggiorni un motore il test fallisce, e va alzata la
+    /// revisione (le velocità cambiano) e riscritta questa riga.
+    /// </summary>
+    public const string CoveredEngines = "Whisper.net=1.9.1;sherpa-onnx=2.0.0";
+
     /// <summary>Revisione e impronta dei brani, per esempio <c>1-3fa9c2d1</c>.</summary>
     public static string Current { get; } = Compute();
 

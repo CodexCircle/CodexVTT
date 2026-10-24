@@ -14,6 +14,22 @@ public class BenchmarkVersionTests
     }
 
     [Fact]
+    public void Updating_a_transcription_engine_requires_raising_the_benchmark_revision()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "Directory.Packages.props")))
+            dir = dir.Parent;
+        Assert.NotNull(dir);
+        var props = File.ReadAllText(Path.Combine(dir!.FullName, "Directory.Packages.props"));
+        static string Version(string text, string package) =>
+            System.Text.RegularExpressions.Regex.Match(text, $"Include=\"{System.Text.RegularExpressions.Regex.Escape(package)}\"\\s+Version=\"([^\"]+)\"").Groups[1].Value;
+
+        var actual = $"Whisper.net={Version(props, "Whisper.net")};sherpa-onnx={Version(props, "org.k2fsa.sherpa.onnx")}";
+        Assert.True(actual == BenchmarkVersion.CoveredEngines,
+            $"Un motore di trascrizione è cambiato ({actual}): alza BenchmarkVersion.Revision e aggiorna CoveredEngines.");
+    }
+
+    [Fact]
     public void The_version_does_not_depend_on_the_app_version_so_an_update_alone_never_invalidates_measurements()
     {
         var store = new BenchmarkStore(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "benchmark.json"));
