@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { palettes, type Palette } from '../bridge/protocol';
 import { transcriptionLanguages, useI18n, type MessageKey } from '../i18n/i18n';
 import type { CodexVttState } from '../state/useCodexVtt';
-import { FolderControl } from './FolderControl';
+import { FolderControl, FolderTestedMark } from './FolderControl';
 
 /** Campioni mostrati nel selettore: i colori di ciascun tema, dal più chiaro al più scuro. */
 const swatches: Record<Palette | 'default', string[]> = {
@@ -153,7 +153,7 @@ export function SettingsPanel({ app }: { app: CodexVttState }) {
       <div className="card">
         <h3>{t('historySettings')}</h3>
         <p className="folder">
-          {t('historyFolder')}: <code>{app.history?.directory}</code>
+          {t('historyFolder')}: <code>{app.history?.directory}</code> <FolderTestedMark app={app} />
         </p>
         {app.desktop && (
           <div className="toolbar">

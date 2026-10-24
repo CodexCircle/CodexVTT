@@ -203,6 +203,18 @@ describe('App', () => {
     expect(screen.getByText(/CodexVtt\.App\.exe$/)).toBeInTheDocument();
   });
 
+  it('keeps a green check next to the folder once it passed the test', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));
+    expect(screen.queryByText('Cartella testata')).not.toBeInTheDocument();
+
+    await user.click(await screen.findByRole('button', { name: 'Cambia cartella…' }));
+    await user.click(screen.getByRole('button', { name: 'Testa cartella' }));
+
+    expect(await screen.findByText('Cartella testata')).toBeInTheDocument();
+    expect(screen.getByTitle(/Cartella testata il/)).toBeInTheDocument();
+  });
+
   it('asks to restart after the GPU option is changed', async () => {
     const { user } = setup({ installed: ['base'] });
     await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));

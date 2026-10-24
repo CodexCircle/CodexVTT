@@ -439,8 +439,16 @@ public sealed partial class BridgeDispatcher : IDisposable
         }
     }
 
-    private AppSettings SaveSettings(AppSettings settings)
+    private AppSettings SaveSettings(AppSettings settings, bool trustTestedAt = false)
     {
+        if (!trustTestedAt)
+        {
+            // Il «testata» lo decide solo il test: dal client resta quello già salvato, e sparisce se la cartella cambia.
+            var current = _settings.Load();
+            var same = string.Equals(current.HistoryDirectory, settings.HistoryDirectory, StringComparison.OrdinalIgnoreCase);
+            settings = settings with { HistoryDirectoryTestedAt = same ? current.HistoryDirectoryTestedAt : null };
+        }
+
         if (settings.SelectedModelId is { } id)
             RequireModel(id);
         if (!CpuLimit.IsValid(settings.CpuLimitPercent))
@@ -583,7 +591,7 @@ public sealed partial class BridgeDispatcher : IDisposable
         if (!test.Ok)
             throw new CodexVttException(ErrorCodes.FolderTestFailed, $"Cartella non utilizzabile: {test.Error}.",
                 new Dictionary<string, string> { ["reason"] = test.Error ?? "" });
-        var settings = SaveSettings(_settings.Load() with { HistoryDirectory = directory });
+        var settings = SaveSettings(_settings.Load() with { HistoryDirectory = directory, HistoryDirectoryTestedAt = DateTimeOffset.UtcNow }, trustTestedAt: true);
         Emit("history.changed", null);
         return settings;
     }
@@ -633,6 +641,9 @@ public sealed partial class BridgeDispatcher : IDisposable
                 catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
                 {
                     LogHistorySaveFailed(ex);
+                    // La cartella non vale più come testata: la spunta verde non deve restare su una cartella che non scrive.
+                    if (_settings.Load() is { HistoryDirectoryTestedAt: not null } tested)
+                        _settings.Save(tested with { HistoryDirectoryTestedAt = null });
                     var code = TryRecover(job.Result!) ? ErrorCodes.HistoryFolderBlocked : ErrorCodes.HistorySaveFailed;
                     Emit("history.saveFailed", new { job.JobId, Error = new BridgeError(code, "Impossibile salvare nella cronologia.") });
                 }

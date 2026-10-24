@@ -304,6 +304,8 @@ export interface AppSettings {
   /** Mascotte scelta; assente = Tina. */
   mascot?: MascotCharacter | null;
   historyDirectory?: string | null;
+  /** Quando la cartella scelta ha superato il test (ISO 8601); assente = mai testata. Lo imposta solo il test. */
+  historyDirectoryTestedAt?: string | null;
   /** Quanta CPU possono usare i motori, in percentuale dei core (10-100); assente = 100, nessun limite. Vale dalla prossima trascrizione. */
   cpuLimitPercent?: number;
   /** Usa la scheda video (Vulkan) per Whisper quando il PC la supporta; assente = sì. Si applica al prossimo avvio. */

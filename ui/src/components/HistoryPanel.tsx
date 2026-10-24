@@ -3,7 +3,7 @@ import { collectionColors, type Collection, type CollectionColor, type HistoryEn
 import { useI18n, type MessageKey } from '../i18n/i18n';
 import type { CodexVttState } from '../state/useCodexVtt';
 import { ConfirmDialog } from './ConfirmDialog';
-import { FolderControl } from './FolderControl';
+import { FolderControl, FolderTestedMark } from './FolderControl';
 import { FormDialog } from './FormDialog';
 
 type Filter = 'all' | 'none' | string;
@@ -213,7 +213,7 @@ export function HistoryPanel({ app, onOpened }: { app: CodexVttState; onOpened: 
       </ul>
 
       <p className="folder-line muted">
-        {t('historyFolder')}: <code>{history?.directory}</code>
+        {t('historyFolder')}: <code>{history?.directory}</code> <FolderTestedMark app={app} />
         {app.desktop && (
           <>
             <button type="button" className="link" onClick={() => void app.openHistoryFolder()}>

@@ -600,7 +600,7 @@ export function createMockTransport(options: MockOptions = {}): Transport {
       case 'history.setFolder':
         if (options.folderTestError) throw { code: 'folder_test_failed', message: options.folderTestError };
         historyDirectory = String(payload.directory);
-        settings = { ...settings, historyDirectory };
+        settings = { ...settings, historyDirectory, historyDirectoryTestedAt: '2026-10-24T16:00:00.000Z' };
         return settings;
       default:
         throw { code: 'invalid_request', message: `Comando sconosciuto: ${request.type}` };

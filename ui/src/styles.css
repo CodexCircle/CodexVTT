@@ -2768,3 +2768,9 @@ button.danger:focus-visible {
   outline: 2px solid var(--err);
   outline-offset: 2px;
 }
+
+.folder-ok {
+  margin-left: 6px;
+  color: var(--ok-text);
+  font-weight: 700;
+}

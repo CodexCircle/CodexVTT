@@ -96,3 +96,16 @@ export function FolderControl({ app, compact = false }: { app: CodexVttState; co
     </div>
   );
 }
+
+/** Spunta verde permanente accanto alla cartella che ha superato il test (finché non cambia o non smette di scrivere). */
+export function FolderTestedMark({ app }: { app: CodexVttState }) {
+  const { t, formatShortDate } = useI18n();
+  const testedAt = app.settings?.historyDirectoryTestedAt;
+  if (!app.settings?.historyDirectory || !testedAt) return null;
+  return (
+    <span className="folder-ok" title={t('folderTestedOn', { date: formatShortDate(testedAt) })}>
+      <span aria-hidden="true">✓</span>
+      <span className="sr-only">{t('folderTested')}</span>
+    </span>
+  );
+}
