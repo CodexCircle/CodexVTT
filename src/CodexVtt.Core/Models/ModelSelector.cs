@@ -7,6 +7,7 @@ public enum CompatibilityIssue
     InsufficientMemory,
     InsufficientDisk,
     TooSlow,
+    InsufficientVram,
     NotPinned,
 }
 
@@ -23,6 +24,7 @@ public sealed record SelectionReason(string Code, IReadOnlyDictionary<string, st
 {
     public const string RamLimit = "ram_limit";
     public const string CpuBudget = "cpu_budget";
+    public const string GpuBudget = "gpu_budget";
     public const string CompatibilityRuntime = "compat_runtime";
     public const string Recommended = "recommended";
     public const string NoneCompatible = "none_compatible";
@@ -62,9 +64,11 @@ public static class ModelSelector
             Reason(SelectionReason.RamLimit,
                 ("totalBytes", hardware.TotalMemoryBytes.ToString(Invariant)),
                 ("limitBytes", ((long)(hardware.TotalMemoryBytes * rules.MaxRamFraction)).ToString(Invariant))),
-            Reason(SelectionReason.CpuBudget,
-                ("cores", hardware.LogicalCores.ToString(Invariant)),
-                ("maxCost", maxCost.ToString(Invariant))),
+            hardware.GpuAcceleration
+                ? GpuReason(hardware, rules)
+                : Reason(SelectionReason.CpuBudget,
+                    ("cores", hardware.LogicalCores.ToString(Invariant)),
+                    ("maxCost", maxCost.ToString(Invariant))),
         };
         if (!hardware.SupportsStandardRuntime)
             reasons.Add(Reason(SelectionReason.CompatibilityRuntime));
@@ -89,9 +93,35 @@ public static class ModelSelector
             issues.Add(CompatibilityIssue.InsufficientMemory);
         if (!installed && model.SizeBytes * (1 + rules.DiskHeadroomFraction) > hardware.FreeDiskBytes)
             issues.Add(CompatibilityIssue.InsufficientDisk);
-        if (model.RelativeCost > maxCost)
+        if (UsesGpu(model, hardware))
+        {
+            // Con la scheda video i tempi non dipendono dal processore: conta la memoria video. Se il driver non la riporta
+            // non si inventa un limite (né di velocità né di memoria).
+            if (hardware.GpuVramBytes is { } vram && model.RamRequiredBytes > vram * rules.MaxVramFraction)
+                issues.Add(CompatibilityIssue.InsufficientVram);
+        }
+        else if (model.RelativeCost > maxCost)
+        {
             issues.Add(CompatibilityIssue.TooSlow);
+        }
+
         return new ModelAssessment(model, issues);
+    }
+
+    /// <summary>Solo Whisper gira sulla scheda video (Vulkan); i motori sherpa-onnx restano sulla CPU.</summary>
+    public static bool UsesGpu(ModelDescriptor model, HardwareProfile hardware) =>
+        hardware.GpuAcceleration && string.Equals(model.Engine, "whisper", StringComparison.Ordinal);
+
+    private static SelectionReason GpuReason(HardwareProfile hardware, SelectionRules rules)
+    {
+        var args = new List<(string, string)> { ("cores", hardware.LogicalCores.ToString(Invariant)) };
+        if (hardware.GpuVramBytes is { } vram)
+        {
+            args.Add(("vramBytes", vram.ToString(Invariant)));
+            args.Add(("limitBytes", ((long)(vram * rules.MaxVramFraction)).ToString(Invariant)));
+        }
+
+        return Reason(SelectionReason.GpuBudget, [.. args]);
     }
 
     public static int MaxCost(HardwareProfile hardware, SelectionRules rules)

@@ -3,6 +3,7 @@ import { collectionColors, type Collection, type CollectionColor, type HistoryEn
 import { useI18n, type MessageKey } from '../i18n/i18n';
 import type { CodexVttState } from '../state/useCodexVtt';
 import { ConfirmDialog } from './ConfirmDialog';
+import { FolderControl } from './FolderControl';
 import { FormDialog } from './FormDialog';
 
 type Filter = 'all' | 'none' | string;
@@ -218,12 +219,10 @@ export function HistoryPanel({ app, onOpened }: { app: CodexVttState; onOpened: 
             <button type="button" className="link" onClick={() => void app.openHistoryFolder()}>
               {t('openFolder')}
             </button>
-            <button type="button" className="link" onClick={() => void app.pickHistoryFolder()}>
-              {t('changeFolder')}
-            </button>
           </>
         )}
       </p>
+      {app.desktop && <FolderControl app={app} compact />}
 
       {renaming && (
         <FormDialog

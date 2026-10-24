@@ -20,16 +20,18 @@ public sealed class BridgeDispatcherTests : IDisposable
     private readonly ModelStore _store;
     private readonly TranscriptionService _transcription;
     private readonly BridgeDispatcher _dispatcher;
+    private readonly FakeReference _reference;
     private int _nextId;
 
     public BridgeDispatcherTests()
     {
         var paths = _dir.AppPaths();
+        _reference = new FakeReference(_dir);
         _store = new ModelStore(paths, TestData.Catalog(models: [("base", ModelContent, 2, 2, 0), ("small", TestData.Bytes("s"), 6, 3, 1)]));
         var audio = new AudioLibrary([new WavDecoder()], TimeSpan.FromHours(3));
         _transcription = new TranscriptionService(_store, audio, new EchoEngine(), NullLogger<TranscriptionService>.Instance);
         _dispatcher = new BridgeDispatcher(paths, new SettingsStore(paths.SettingsFile), _store, new NoDownloads(),
-            new FakeHardware(TestData.Hardware()), audio, _transcription, _shell, new HistoryLocation(HistoryDir), NullLogger<BridgeDispatcher>.Instance);
+            new FakeHardware(TestData.Hardware()), audio, _transcription, _shell, new HistoryLocation(HistoryDir), NullLogger<BridgeDispatcher>.Instance, referenceFile: _reference);
     }
 
     private string HistoryDir => Path.Combine(_dir.Path, "Documenti", "CodexVTT", "history");
@@ -219,7 +221,11 @@ public sealed class BridgeDispatcherTests : IDisposable
         var custom = Path.Combine(_dir.Path, "Le mie trascrizioni");
         _shell.NextFolder = custom;
 
-        var saved = Ok(await Call("history.pickFolder"));
+        var picked = Ok(await Call("history.pickFolder"));
+        Assert.Equal(custom, picked.GetProperty("directory").GetString());
+        Assert.NotEqual(custom, Ok(await Call("history.list")).GetProperty("directory").GetString()); // scelta ma non ancora adottata
+        Assert.True(Ok(await Call("history.testFolder", new { directory = custom })).GetProperty("ok").GetBoolean());
+        var saved = Ok(await Call("history.setFolder", new { directory = custom }));
 
         Assert.Equal(custom, saved.GetProperty("historyDirectory").GetString());
         Assert.Equal(custom, Ok(await Call("history.list")).GetProperty("directory").GetString());
@@ -234,6 +240,85 @@ public sealed class BridgeDispatcherTests : IDisposable
         Assert.Equal("natale", Ok(await Call("settings.get")).GetProperty("palette").GetString());
         Assert.Equal(ErrorCodes.InvalidRequest, ErrorCode(await Call("settings.set", new { mascot = "drago" })));
         Assert.Equal("giulio", Ok(await Call("settings.set", new { mascot = "giulio" })).GetProperty("mascot").GetString());
+    }
+
+    [Fact]
+    public async Task History_folder_that_fails_the_test_is_not_saved()
+    {
+        var before = Ok(await Call("history.list")).GetProperty("directory").GetString();
+        var blocker = Path.Combine(_dir.Path, "file.txt");
+        File.WriteAllText(blocker, "x");
+        var inside = Path.Combine(blocker, "sotto"); // una cartella dentro un file: impossibile da creare
+
+        var test = Ok(await Call("history.testFolder", new { directory = inside }));
+        Assert.False(test.GetProperty("ok").GetBoolean());
+        Assert.Equal(ErrorCodes.FolderTestFailed, ErrorCode(await Call("history.setFolder", new { directory = inside })));
+        Assert.Equal(ErrorCodes.FolderTestFailed, ErrorCode(await Call("history.setFolder", new { directory = "relativa" })));
+        Assert.Equal(before, Ok(await Call("history.list")).GetProperty("directory").GetString());
+    }
+
+    [Fact]
+    public async Task Benchmark_measures_installed_models_without_touching_the_history_and_feeds_the_estimate()
+    {
+        _shell.NextOpen = _dir.File("base.bin", ModelContent);
+        Ok(await Call("models.import"));
+        Assert.Equal("none", Ok(await Call("benchmark.estimate", new { modelId = "base", durations = new[] { 60.0 } })).GetProperty("basis").GetString());
+        Assert.Empty(Ok(await Call("benchmark.get")).GetProperty("entries").EnumerateArray());
+
+        _shell.NextOpen = _dir.File("riferimento.wav", TestData.Wav(16000, 1, 12));
+        var started = Ok(await Call("benchmark.start"));
+        Assert.True(started.GetProperty("started").GetBoolean());
+        var done = await _shell.WaitForEventAsync("benchmark.completed");
+
+        Assert.Equal("done", Assert.Single(done.GetProperty("payload").GetProperty("outcomes").EnumerateArray()).GetProperty("phase").GetString());
+        var entry = Assert.Single(Ok(await Call("benchmark.get")).GetProperty("entries").EnumerateArray());
+        Assert.Equal("base", entry.GetProperty("modelId").GetString());
+        Assert.Equal("none", entry.GetProperty("stale").GetString());
+        Assert.True(entry.GetProperty("speed").GetDouble() > 0);
+        // Il test non è una trascrizione dell'utente: niente cronologia e niente eventi transcription.*.
+        Assert.Empty(Ok(await Call("history.list")).GetProperty("entries").EnumerateArray());
+        Assert.DoesNotContain(_shell.Events, e => e.GetProperty("event").GetString() is "transcription.completed" or "transcription.progress");
+
+        var estimate = Ok(await Call("benchmark.estimate", new { modelId = "base", durations = new[] { 60.0, 120.0 } }));
+        Assert.Equal("benchmark", estimate.GetProperty("basis").GetString());
+        Assert.True(estimate.GetProperty("seconds").GetDouble() > 0);
+        Assert.Equal("none", Ok(await Call("benchmark.estimate", new { modelId = "small", durations = new[] { 60.0 } })).GetProperty("basis").GetString());
+    }
+
+    [Fact]
+    public async Task Benchmark_official_file_is_downloaded_only_on_an_explicit_request_and_then_reused()
+    {
+        _shell.NextOpen = _dir.File("base.bin", ModelContent);
+        Ok(await Call("models.import"));
+        var info = Ok(await Call("benchmark.reference"));
+        Assert.Equal(0, _reference.Downloads); // mostrare l'indirizzo non scarica nulla
+        Assert.StartsWith("https://archive.org/download/", info.GetProperty("url").GetString());
+        Assert.Equal(64, info.GetProperty("sha256").GetString()!.Length);
+        Assert.False(info.GetProperty("cached").GetBoolean());
+
+        Ok(await Call("benchmark.start", new { useReference = true }));
+        await _shell.WaitForEventAsync("benchmark.completed");
+
+        Assert.Equal(1, _reference.Downloads);
+        Assert.True(Ok(await Call("benchmark.reference")).GetProperty("cached").GetBoolean());
+        Assert.Single(Ok(await Call("benchmark.get")).GetProperty("entries").EnumerateArray());
+    }
+
+    [Fact]
+    public async Task Benchmark_refuses_files_of_unsuitable_length_and_cannot_start_over_a_transcription()
+    {
+        _shell.NextOpen = _dir.File("corto.wav", TestData.Wav(16000, 1, 2));
+        Assert.Equal(ErrorCodes.BenchmarkAudioInvalid, ErrorCode(await Call("benchmark.start")));
+
+        _shell.NextOpen = _dir.File("base.bin", ModelContent);
+        Ok(await Call("models.import"));
+        _shell.NextOpen = _dir.File("lungo.wav", TestData.Wav(16000, 1, 30));
+        var audio = Ok(await Call("audio.pick"));
+        Ok(await Call("settings.set", new { selectedModelId = "base", language = "it", showMascot = true }));
+        Ok(await Call("transcription.start", new { audioId = audio.GetProperty("audioId").GetString() }));
+        _shell.NextOpen = _dir.File("riferimento.wav", TestData.Wav(16000, 1, 12));
+        var busy = ErrorCode(await Call("benchmark.start"));
+        Assert.True(busy is ErrorCodes.TranscriptionBusy);
     }
 
     [Fact]
@@ -454,6 +539,21 @@ public sealed class BridgeDispatcherTests : IDisposable
     public async Task Settings_reject_unknown_model()
     {
         Assert.Equal(ErrorCodes.ModelUnknown, ErrorCode(await Call("settings.set", new { selectedModelId = "nope" })));
+    }
+
+    private sealed class FakeReference(TempDir dir) : CodexVtt.Core.Benchmark.IReferenceFileProvider
+    {
+        private string? _path;
+
+        public int Downloads { get; private set; }
+
+        public string? CachedPath() => _path;
+
+        public Task<string> EnsureAsync(CancellationToken ct)
+        {
+            Downloads++;
+            return Task.FromResult(_path ??= dir.File("ufficiale.wav", TestData.Wav(16000, 1, 12)));
+        }
     }
 
     private sealed class FakeShell : IShellServices

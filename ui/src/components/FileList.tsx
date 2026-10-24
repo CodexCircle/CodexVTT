@@ -6,6 +6,11 @@ export type Selection = { kind: 'queue'; key: string } | { kind: 'recent'; id: s
 
 const dotClass: Record<QueueItem['status'], string> = { queued: '', working: 'run', done: 'done', failed: 'err' };
 
+/** Stato mostrato nell'elenco: lo stesso della vista del file (in pausa quando il lavoro è in pausa). */
+export function workingStatus(paused: boolean): 'paused' | 'working' {
+  return paused ? 'paused' : 'working';
+}
+
 interface Props {
   app: CodexVttState;
   selection: Selection;
@@ -25,6 +30,7 @@ export function FileList({ app, selection, running, paused, onSelectQueue, onSel
   const openId = app.open?.historyId;
   const percent = app.progress?.percent ?? 0;
   const single = !inQueue && app.audio;
+  const working = workingStatus(paused);
 
   return (
     <aside className="side" aria-label={t('files')}>
@@ -36,10 +42,10 @@ export function FileList({ app, selection, running, paused, onSelectQueue, onSel
               {single && (
                 <li aria-label={app.audio!.info.fileName}>
                   <button type="button" className="file" onClick={onNew}>
-                    <span className={`st ${app.jobId ? 'run' : ''}`} />
+                    <span className={`st ${app.jobId ? (paused ? 'paused' : 'run') : ''}`} />
                     <span className="file__text">
                       <b>{app.audio!.info.fileName}</b>
-                      <small>{app.jobId ? t('queueStatus_working') : formatDuration(app.audio!.info.duration)}</small>
+                      <small>{app.jobId ? t(`queueStatus_${working}`) : formatDuration(app.audio!.info.duration)}</small>
                       {app.jobId && (
                         <span className="bar" aria-hidden="true">
                           <i style={{ width: `${percent}%` }} />
@@ -60,11 +66,11 @@ export function FileList({ app, selection, running, paused, onSelectQueue, onSel
                       aria-label={item.status === 'done' ? t('queueOpenFile', { file: item.fileName }) : item.fileName}
                       onClick={() => onSelectQueue(item)}
                     >
-                      <span className={`st ${dotClass[item.status]}`} />
+                      <span className={`st ${item.status === 'working' && paused ? 'paused' : dotClass[item.status]}`} />
                       <span className="file__text">
                         <b>{item.fileName}</b>
                         <small>
-                          <span>{item.status === 'working' ? `${t('queueStatus_working')} · ${percent}%` : t(`queueStatus_${item.status}` as MessageKey)}</span>
+                          <span>{item.status === 'working' ? `${t(`queueStatus_${working}`)} · ${percent}%` : t(`queueStatus_${item.status}` as MessageKey)}</span>
                           {item.info && <span> · {formatDuration(item.info.duration)}</span>}
                         </small>
                         {item.error && (

@@ -33,7 +33,7 @@ export interface BridgeEvent {
 
 export type ModelState = 'notInstalled' | 'downloading' | 'verifying' | 'unverified' | 'ready' | 'corrupted';
 
-export type CompatibilityIssue = 'insufficientMemory' | 'insufficientDisk' | 'tooSlow' | 'notPinned';
+export type CompatibilityIssue = 'insufficientMemory' | 'insufficientDisk' | 'tooSlow' | 'notPinned' | 'insufficientVram';
 
 /** Affidabilità dichiarata: 100 meno il WER sull'italiano, con la fonte. */
 export interface ModelAccuracy {
@@ -81,6 +81,18 @@ export interface HardwareProfile {
   freeDiskBytes: number;
   /** Schede video utilizzabili con Vulkan; vuoto se non ce ne sono (Whisper usa la CPU). */
   gpus?: string[];
+  /** Dettagli delle schede: la memoria video c'è solo per le dedicate e solo se il driver la riporta. */
+  gpuDetails?: GpuDevice[];
+  /** Whisper userà la scheda video (impostazione attiva, scheda trovata, AVX2): i modelli si giudicano dalla sua memoria. */
+  gpuAcceleration?: boolean;
+  /** Memoria video della scheda dedicata più grande, se nota. */
+  gpuVramBytes?: number;
+}
+
+export interface GpuDevice {
+  name: string;
+  kind: 'dedicata' | 'integrata' | 'virtuale';
+  vramBytes?: number;
 }
 
 export interface SystemInfo {
@@ -95,7 +107,7 @@ export interface SystemInfo {
 }
 
 export interface SelectionReason {
-  code: 'ram_limit' | 'cpu_budget' | 'compat_runtime' | 'recommended' | 'none_compatible' | string;
+  code: 'ram_limit' | 'cpu_budget' | 'gpu_budget' | 'compat_runtime' | 'recommended' | 'none_compatible' | string;
   args: Record<string, string>;
 }
 
@@ -210,6 +222,63 @@ export const mascotCharacters = ['tina', 'giulio'] as const;
 export type MascotCharacter = (typeof mascotCharacters)[number];
 
 /** Temi di colore: il primo è il predefinito (salvato come assente). */
+/** Esito del test di una cartella: `error` è not_found, cannot_write, cannot_read o cannot_delete. */
+export interface FolderTestResult {
+  ok: boolean;
+  error?: string;
+}
+
+/** Perché una misura del Test bench non vale più (`none` = vale). */
+export type BenchmarkStale = 'none' | 'hardwareChanged' | 'modelChanged' | 'runtimeChanged';
+
+export interface BenchmarkEntry {
+  modelId: string;
+  /** Runtime usato nella misura, per esempio «Cpu» o «Vulkan (GPU)». */
+  runtime: string;
+  threads?: number;
+  audioSeconds: number;
+  /** Tempo fisso (caricamento del modello). */
+  loadSeconds: number;
+  /** Secondi di audio per secondo reale dopo il caricamento (4 = quattro volte il tempo reale). */
+  speed: number;
+  measuredAt: string;
+  stale: BenchmarkStale;
+}
+
+export interface BenchmarkState {
+  running: boolean;
+  entries: BenchmarkEntry[];
+}
+
+export interface BenchmarkProgress {
+  modelId: string;
+  index: number;
+  total: number;
+  phase: 'running' | 'done' | 'failed';
+  speed?: number;
+  loadSeconds?: number;
+  errorCode?: string;
+}
+
+/** `none` = nessuna misura valida per il modello: la UI non inventa numeri. */
+export interface BenchmarkEstimate {
+  basis: 'none' | 'benchmark';
+  seconds?: number;
+  measuredAt?: string;
+  runtime?: string;
+}
+
+export interface BenchmarkReferenceInfo {
+  available: boolean;
+  url: string;
+  title: string;
+  sizeBytes: number;
+  sha256: string;
+  license: string;
+  /** Già scaricato e verificato: il test parte senza rete. */
+  cached: boolean;
+}
+
 export const palettes = ['sabbia', 'natale', 'halloween', 'ciliegia'] as const;
 export type Palette = (typeof palettes)[number];
 
@@ -330,7 +399,19 @@ export interface Commands {
   'collections.reorder': { req: { id: string; entryIds: string[] }; res: Collection };
   'history.openFolder': { req: void; res: { opened: boolean } };
   'diagnostics.openLogs': { req: void; res: { opened: boolean } };
-  'history.pickFolder': { req: void; res: AppSettings | null };
+  /** Apre la selezione della cartella: non la salva, va prima testata. */
+  /** Sceglie il file di riferimento (dialog nativo) e avvia il test su tutti i modelli pronti; null se si annulla. */
+  'benchmark.start': { req: { useReference?: boolean } | void; res: { started: boolean; fileName: string; duration: number } | null };
+  /** File di riferimento ufficiale: indirizzo, dimensione, hash e licenza da mostrare prima di scaricarlo. Non scarica nulla. */
+  'benchmark.reference': { req: void; res: BenchmarkReferenceInfo };
+  'benchmark.cancel': { req: void; res: { cancelling: boolean } };
+  'benchmark.get': { req: void; res: BenchmarkState };
+  /** Stima per file di queste durate (secondi) con il modello indicato, dall'ultima misura valida. */
+  'benchmark.estimate': { req: { modelId: string; durations: number[] }; res: BenchmarkEstimate };
+  'history.pickFolder': { req: void; res: { directory: string } | null };
+  'history.testFolder': { req: { directory: string }; res: FolderTestResult };
+  /** Salva la cartella solo se il test riesce (altrimenti errore folder_test_failed e resta la precedente). */
+  'history.setFolder': { req: { directory: string }; res: AppSettings };
 }
 
 export interface Events {
@@ -348,6 +429,10 @@ export interface Events {
   'updates.progress': { percent: number };
   'updates.failed': BridgeError;
   'queue.changed': QueueState;
+  'benchmark.progress': BenchmarkProgress;
+  'benchmark.completed': { outcomes: BenchmarkProgress[]; snapshot: BenchmarkState };
+  'benchmark.cancelled': { snapshot: BenchmarkState };
+  'benchmark.failed': { error: BridgeError; snapshot: BenchmarkState };
   'queue.finished': { done: number; failed: number };
   /** Eventi locali del trasporto web: il collegamento con il server è caduto o è tornato. */
   'connection.lost': undefined;

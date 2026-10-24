@@ -17,10 +17,14 @@ Questi vincoli devono essere garantiti dalla struttura del codice e verificabili
 
 ## Decisione
 
-1. **Rete ammessa solo in due casi, entrambi avviati dall'utente:**
+1. **Rete ammessa solo in tre casi, tutti avviati dall'utente:**
    - download dei modelli dagli host del catalogo (ADR-0003);
    - verifica e download degli aggiornamenti dell'app dalle release di GitHub (ADR-0005, ADR-0008): su richiesta, oppure
      all'avvio **solo se l'utente ha attivato** il controllo automatico (spento di default).
+   - download del **file di riferimento del Test bench** (una lettura in italiano de «Le avventure di Pinocchio», capitolo 6, registrazione LibriVox
+     di pubblico dominio) da `archive.org`, **solo dopo la conferma dell'utente** in un dialog che mostra indirizzo, SHA-256 e licenza. L'indirizzo, la
+     dimensione e l'hash sono fissati nel codice (`BenchmarkReference`); il file si scarta se non coincidono. Il download sta in
+     `CodexVtt.Models.Download` (`ReferenceFileDownloader`), con allowlist `archive.org` e redirect controllati. In alternativa l'utente sceglie un proprio file e non c'è rete.
 
    Nessuna richiesta di rete durante la trascrizione, l'export o la chiusura, né all'avvio senza quella scelta.
 2. **Un solo punto di uscita:** `HttpClient` esiste solo in `CodexVtt.Models.Download` e nel componente di update. Il client usa un handler con **allowlist di host** (es. `huggingface.co` e i suoi CDN, host del feed release). Una richiesta verso un host non in lista fallisce e viene registrata nel log. Le richieste contengono solo URL di file pubblici: nessun identificativo utente o dato della trascrizione.

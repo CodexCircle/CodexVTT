@@ -56,6 +56,8 @@ public static class MauiProgram
             sp.GetRequiredService<HostAllowlist>(),
             sp.GetRequiredService<ILogger<ModelDownloader>>()));
 
+        services.AddSingleton<CodexVtt.Core.Benchmark.IReferenceFileProvider>(sp => new ReferenceFileDownloader(
+            ModelDownloader.CreateHttpClient(), Path.Combine(paths.Root, "benchmark")));
         services.AddSingleton(_ => new AudioLibrary([new WavDecoder(), new MediaFoundationDecoder()], MaxAudioDuration));
         // Motori (ADR-0009): Whisper (con GPU se possibile) e sherpa-onnx per Parakeet, Canary e Cohere.
         var sherpa = new SherpaEngine();

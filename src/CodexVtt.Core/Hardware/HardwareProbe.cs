@@ -17,7 +17,8 @@ public sealed partial class HardwareProbe : IHardwareProbe
             AvailableMemory() ?? total,
             DetectCpuFeatures(),
             FreeDisk(modelsDirectory),
-            GpuProbe.Devices.Select(g => g.Name).ToList());
+            GpuProbe.Devices.Select(g => g.Name).ToList(),
+            GpuProbe.Devices.ToList());
     }
 
     public static CpuFeatures DetectCpuFeatures()

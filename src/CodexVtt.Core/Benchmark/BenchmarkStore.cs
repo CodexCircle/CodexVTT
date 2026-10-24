@@ -1,0 +1,99 @@
+using System.Text.Json;
+using CodexVtt.Core.Hardware;
+using CodexVtt.Core.Models;
+
+namespace CodexVtt.Core.Benchmark;
+
+/// <summary>
+/// Misure di velocità in benchmark.json nella cartella dati, accanto a settings.json: sono dati misurati, non preferenze.
+/// Non escono mai dal PC (ADR-0006). Le misure si invalidano da sole se cambia l'hardware, il modello o il runtime.
+/// </summary>
+public sealed class BenchmarkStore
+{
+    private static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    private readonly string _path;
+    private readonly Lock _gate = new();
+
+    public BenchmarkStore(string path) => _path = path;
+
+    /// <summary>Impronta dell'hardware: se cambia (nuovo PC, nuova scheda, GPU attivata o no) le misure vecchie non valgono.</summary>
+    public static string Fingerprint(HardwareProfile hardware) =>
+        string.Join('|',
+            hardware.Architecture,
+            hardware.LogicalCores,
+            (int)hardware.CpuFeatures,
+            hardware.TotalMemoryBytes / (1L << 30),
+            hardware.GpuAcceleration ? "gpu" : "cpu",
+            string.Join(',', (hardware.GpuDetails?.Select(g => g.Name) ?? hardware.Gpus ?? []).Order(StringComparer.Ordinal)));
+
+    /// <summary>Identità del file del modello: l'hash fissato dal catalogo, altrimenti nome e dimensione.</summary>
+    public static string ModelIdentity(ModelDescriptor model) => model.Sha256 ?? $"{model.File}:{model.SizeBytes}";
+
+    public BenchmarkFile Read()
+    {
+        lock (_gate)
+        {
+            try
+            {
+                if (!File.Exists(_path))
+                    return BenchmarkFile.Empty;
+                var file = JsonSerializer.Deserialize<BenchmarkFile>(File.ReadAllText(_path), Options);
+                return file is { Version: BenchmarkFile.CurrentVersion } ? file : BenchmarkFile.Empty;
+            }
+            catch (Exception ex) when (ex is JsonException or IOException)
+            {
+                // File illeggibile: le misure si rifanno, nessun errore per l'utente.
+                return BenchmarkFile.Empty;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Salva una misura. Se l'impronta dell'hardware è diversa da quella del file le misure precedenti vengono scartate;
+    /// per lo stesso modello e runtime la nuova misura sostituisce la vecchia.
+    /// </summary>
+    public void Record(string fingerprint, BenchmarkEntry entry)
+    {
+        lock (_gate)
+        {
+            var current = Read();
+            var kept = current.Fingerprint == fingerprint
+                ? current.Entries.Where(e => !(e.ModelId == entry.ModelId && e.Runtime == entry.Runtime)).ToList()
+                : [];
+            kept.Add(entry);
+            Write(new BenchmarkFile(BenchmarkFile.CurrentVersion, fingerprint, kept));
+        }
+    }
+
+    /// <summary>Tutte le misure con il loro stato rispetto all'hardware, ai modelli installati e alla versione dell'app.</summary>
+    public IReadOnlyList<BenchmarkView> Views(string fingerprint, Func<string, string?> identityOf, string appVersion)
+    {
+        var file = Read();
+        return file.Entries.Select(e => new BenchmarkView(e, Classify(file, fingerprint, identityOf, appVersion, e))).ToList();
+    }
+
+    /// <summary>La misura valida per un modello, se c'è; con più runtime vale la più recente.</summary>
+    public BenchmarkEntry? Lookup(string fingerprint, string modelId, Func<string, string?> identityOf, string appVersion) =>
+        Views(fingerprint, identityOf, appVersion)
+            .Where(v => v.IsValid && v.Entry.ModelId == modelId)
+            .Select(v => v.Entry)
+            .OrderByDescending(e => e.MeasuredAt)
+            .FirstOrDefault();
+
+    private static BenchmarkStaleReason Classify(BenchmarkFile file, string fingerprint, Func<string, string?> identityOf, string appVersion, BenchmarkEntry entry)
+    {
+        if (file.Fingerprint != fingerprint)
+            return BenchmarkStaleReason.HardwareChanged;
+        if (identityOf(entry.ModelId) != entry.ModelIdentity)
+            return BenchmarkStaleReason.ModelChanged;
+        return entry.AppVersion == appVersion ? BenchmarkStaleReason.None : BenchmarkStaleReason.RuntimeChanged;
+    }
+
+    private void Write(BenchmarkFile file)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
+        var temp = _path + ".tmp";
+        File.WriteAllText(temp, JsonSerializer.Serialize(file, Options));
+        File.Move(temp, _path, overwrite: true);
+    }
+}

@@ -80,6 +80,23 @@ describe('Editor a due pannelli', () => {
     expect(screen.queryByRole('button', { name: 'Accetta' })).not.toBeInTheDocument();
   });
 
+  it('«Punteggiatura e frasi» riorganizza i segmenti in blocchi più lunghi e si annulla', async () => {
+    const user = await openFirstRecent();
+    expect(screen.getAllByRole('textbox', { name: /^Testo del segmento/ })).toHaveLength(2);
+
+    await user.click(screen.getByRole('button', { name: 'Punteggiatura e frasi' }));
+
+    const segments = screen.getAllByRole('textbox', { name: /^Testo del segmento/ });
+    expect(segments).toHaveLength(1);
+    expect(segments[0]).toHaveTextContent('Non so perchè è andata così. Dobbiamo sopratutto capire il motivo.');
+    expect(screen.getByText('Segmenti riorganizzati: da 2 a 1.')).toBeInTheDocument();
+    expect(await screen.findByText('Modifiche non salvate')).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Annulla modifica' }));
+    expect(await screen.findByText('Salvato nella cronologia')).toBeInTheDocument();
+    expect(screen.getAllByRole('textbox', { name: /^Testo del segmento/ })).toHaveLength(2);
+  });
+
   it('il lettore avvia e ferma il cursore, e la timeline si può ingrandire', async () => {
     const user = await openFirstRecent();
 

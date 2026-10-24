@@ -5,6 +5,7 @@ using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using CodexVtt.Core;
 using CodexVtt.Core.Audio;
+using CodexVtt.Core.Benchmark;
 using CodexVtt.Core.Errors;
 using CodexVtt.Core.Export;
 using CodexVtt.Core.Hardware;
@@ -31,6 +32,7 @@ public sealed partial class BridgeDispatcher : IDisposable
     private readonly IShellServices _shell;
     private readonly HistoryLocation _historyLocation;
     private readonly IUpdateService? _updates;
+    private readonly IReferenceFileProvider? _referenceFile;
     private readonly ILogger<BridgeDispatcher> _logger;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _downloads = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Func<JsonElement?, CancellationToken, Task<object?>>> _handlers;
@@ -46,7 +48,8 @@ public sealed partial class BridgeDispatcher : IDisposable
         IShellServices shell,
         HistoryLocation historyLocation,
         ILogger<BridgeDispatcher> logger,
-        IUpdateService? updates = null)
+        IUpdateService? updates = null,
+        CodexVtt.Core.Benchmark.IReferenceFileProvider? referenceFile = null)
     {
         _paths = paths;
         _settings = settings;
@@ -59,7 +62,9 @@ public sealed partial class BridgeDispatcher : IDisposable
         _historyLocation = historyLocation;
         _logger = logger;
         _updates = updates;
+        _referenceFile = referenceFile;
 
+        InitBenchmark();
         _transcription.Progress += OnTranscriptionProgress;
         _transcription.Finished += OnTranscriptionFinished;
 
@@ -90,6 +95,11 @@ public sealed partial class BridgeDispatcher : IDisposable
             ["queue.clear"] = (_, _) => Task.FromResult<object?>(QueueClear()),
             ["queue.start"] = (p, _) => Task.FromResult<object?>(QueueStart(p is { ValueKind: JsonValueKind.Object } ? Read<QueueStartRequest>(p) : new QueueStartRequest(null, null))),
             ["queue.stop"] = (_, _) => Task.FromResult<object?>(QueueStop()),
+            ["benchmark.get"] = (_, _) => Task.FromResult<object?>(BenchmarkSnapshot()),
+            ["benchmark.start"] = BenchmarkStartAsync,
+            ["benchmark.reference"] = (_, _) => Task.FromResult<object?>(BenchmarkReferenceInfo()),
+            ["benchmark.cancel"] = (_, _) => Task.FromResult<object?>(BenchmarkCancel()),
+            ["benchmark.estimate"] = (p, _) => Task.FromResult<object?>(BenchmarkEstimate(Read<BenchmarkEstimateRequest>(p))),
             ["export.save"] = ExportAsync,
             ["settings.get"] = (_, _) => Task.FromResult<object?>(_settings.Load()),
             ["settings.set"] = (p, _) => Task.FromResult<object?>(SaveSettings(Read<AppSettings>(p))),
@@ -99,6 +109,8 @@ public sealed partial class BridgeDispatcher : IDisposable
             ["history.openFolder"] = (_, _) => Task.FromResult<object?>(OpenHistoryFolder()),
             ["diagnostics.openLogs"] = (_, _) => Task.FromResult<object?>(OpenLogsFolder()),
             ["history.pickFolder"] = PickHistoryFolderAsync,
+            ["history.testFolder"] = (p, _) => Task.FromResult<object?>(FolderProbe.Test(Read<FolderRef>(p).Directory)),
+            ["history.setFolder"] = (p, _) => Task.FromResult<object?>(SetHistoryFolder(Read<FolderRef>(p).Directory)),
             ["history.update"] = (p, _) => Task.FromResult<object?>(UpdateHistory(p)),
             ["collections.save"] = (p, _) => Task.FromResult<object?>(SaveCollection(Read<CollectionSaveRequest>(p))),
             ["collections.delete"] = (p, _) => Task.FromResult<object?>(DeleteCollection(Read<HistoryRef>(p).Id)),
@@ -199,7 +211,7 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private object SystemInfo()
     {
-        var hardware = _hardware.Probe(_paths.Models);
+        var hardware = _hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu);
         return new
         {
             AppVersion = AppVersion(),
@@ -214,7 +226,7 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private List<ModelDto> ListModels()
     {
-        var hardware = _hardware.Probe(_paths.Models);
+        var hardware = _hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu);
         var maxCost = ModelSelector.MaxCost(hardware, _models.Catalog.Selection);
         return _models.List().Select(s => ToDto(s, ModelSelector.Assess(
             s.Model, hardware, _models.Catalog.Selection, maxCost, s.State is not ModelState.NotInstalled))).ToList();
@@ -222,7 +234,7 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private object Recommend()
     {
-        var hardware = _hardware.Probe(_paths.Models);
+        var hardware = _hardware.Probe(_paths.Models).WithGpuAcceleration(_settings.Load().UseGpu);
         var recommendation = ModelSelector.Recommend(hardware, _models.Catalog, _models.InstalledIds());
         return new
         {
@@ -334,6 +346,8 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private object StartTranscription(StartTranscriptionRequest request)
     {
+        if (_benchmark.Running)
+            throw new CodexVttException(ErrorCodes.TranscriptionBusy, "È in corso il test bench dei modelli.");
         var modelId = request.ModelId ?? _settings.Load().SelectedModelId
             ?? throw new CodexVttException(ErrorCodes.ModelNotInstalled, "Nessun modello selezionato.");
         // V1: nessuna traduzione (issue #17), solo trascrizione nella lingua dell'audio.
@@ -555,12 +569,21 @@ public sealed partial class BridgeDispatcher : IDisposable
         return new { Opened = true };
     }
 
+    /// <summary>Apre la selezione e restituisce la cartella scelta, senza salvarla: va prima testata (<c>history.testFolder</c>).</summary>
     private async Task<object?> PickHistoryFolderAsync(JsonElement? payload, CancellationToken ct)
     {
         var folder = await _shell.PickFolderAsync(ct).ConfigureAwait(false);
-        if (folder is null)
-            return null;
-        var settings = SaveSettings(_settings.Load() with { HistoryDirectory = folder });
+        return folder is null ? null : new FolderRef(folder);
+    }
+
+    /// <summary>Adotta la cartella solo se il test di lettura, scrittura e cancellazione riesce; altrimenti resta la precedente.</summary>
+    private AppSettings SetHistoryFolder(string directory)
+    {
+        var test = FolderProbe.Test(directory);
+        if (!test.Ok)
+            throw new CodexVttException(ErrorCodes.FolderTestFailed, $"Cartella non utilizzabile: {test.Error}.",
+                new Dictionary<string, string> { ["reason"] = test.Error ?? "" });
+        var settings = SaveSettings(_settings.Load() with { HistoryDirectory = directory });
         Emit("history.changed", null);
         return settings;
     }
@@ -587,12 +610,16 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private void OnTranscriptionProgress(JobProgress progress)
     {
+        if (_benchmark.Running)
+            return; // i job del test bench non sono trascrizioni dell'utente
         _lastProgress = progress;
         Emit("transcription.progress", progress);
     }
 
     private void OnTranscriptionFinished(TranscriptionJob job)
     {
+        if (_benchmark.Running)
+            return; // il test bench non salva nulla in cronologia
         // I job della coda arrivano alla UI con queue.changed; gli eventi transcription.* restano per quelli singoli.
         var fromQueue = IsQueueJob(job.JobId);
         string? historyId = null;
@@ -702,6 +729,8 @@ public sealed record StartTranscriptionRequest(string AudioId, string? ModelId, 
 public sealed record ExportRequest(string? JobId, string? HistoryId, ExportFormat Format, bool? IncludeHeader);
 
 public sealed record HistoryRef(string Id);
+
+public sealed record FolderRef(string Directory);
 
 public sealed record PickedAudio(string AudioId, AudioInfo Info);
 

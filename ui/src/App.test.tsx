@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App';
@@ -130,6 +130,186 @@ describe('App', () => {
     expect(within(screen.getByRole('listitem', { name: 'a.mp3' })).getByText('In coda')).toBeInTheDocument();
     expect(within(screen.getByRole('listitem', { name: 'b.mp3' })).getByText('In coda')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Avvia coda' })).toBeInTheDocument();
+  });
+
+  it('shows «In pausa» in the file list while the job is paused, like the file view does', async () => {
+    const { user } = setup({ installed: ['base'], batchFiles: ['a.mp3', 'b.mp3'], tick: 20, jobStep: 5 });
+
+    await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
+    await user.click(await screen.findByRole('button', { name: 'Avvia coda' }));
+    const pause = await screen.findByRole('button', { name: 'Pausa' });
+    await waitFor(() => expect(pause).toBeEnabled());
+    await user.click(pause);
+
+    const row = screen.getByRole('listitem', { name: 'a.mp3' });
+    await waitFor(() => expect(within(row).getByText(/^In pausa/)).toBeInTheDocument());
+    expect(within(row).queryByText(/^In corso/)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Riprendi' }));
+    await waitFor(() => expect(within(screen.getByRole('listitem', { name: 'a.mp3' })).queryByText(/^In pausa/)).not.toBeInTheDocument());
+  });
+
+  it('shows «Cartella non testata» after choosing a folder and only saves it when the test passes', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Cambia cartella…' }));
+    expect(await screen.findByText('Cartella non testata')).toBeInTheDocument();
+    expect(screen.getByText(/Trascrizioni$/)).toBeInTheDocument();
+    expect(screen.getByText(/history$/)).toBeInTheDocument(); // ancora la cartella precedente
+
+    await user.click(screen.getByRole('button', { name: 'Testa cartella' }));
+    await waitFor(() => expect(screen.queryByText('Cartella non testata')).not.toBeInTheDocument());
+    expect(screen.getAllByText(/Trascrizioni$/).length).toBeGreaterThan(0);
+  });
+
+  it('warns and keeps the previous folder when the folder test fails', async () => {
+    const { user } = setup({ installed: ['base'], folderTestError: 'cannot_write' });
+    await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));
+
+    await user.click(await screen.findByRole('button', { name: 'Cambia cartella…' }));
+    await user.click(screen.getByRole('button', { name: 'Testa cartella' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Non si può scrivere in questa cartella.');
+    expect(screen.getByText('Test non riuscito')).toBeInTheDocument();
+    expect(screen.getByText(/history$/)).toBeInTheDocument();
+    expect(screen.getByText(/Trascrizioni$/)).toBeInTheDocument(); // solo la scelta in attesa, non salvata
+  });
+
+  it('lets the user pick a color theme and applies it to the document', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Impostazioni' }));
+
+    const group = await screen.findByRole('group', { name: 'Tema' });
+    for (const name of ['Predefinito', 'Sabbia', 'Natale', 'Halloween', 'Ciliegia']) {
+      expect(within(group).getByRole('radio', { name })).toBeInTheDocument();
+    }
+    await user.click(within(group).getByRole('radio', { name: 'Natale' }));
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBe('natale'));
+    await user.click(within(group).getByRole('radio', { name: 'Predefinito' }));
+    await waitFor(() => expect(document.documentElement.dataset.palette).toBeUndefined());
+  });
+
+  it('judges the models by the video memory when Whisper uses the graphics card', async () => {
+    const { user } = setup({ gpus: ['NVIDIA GeForce RTX 3060'], gpuVramGb: 12 });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+
+    expect(await screen.findByText(/Whisper usa la scheda video \(12 GB di memoria video\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/il modello più pesante adatto a questo processore/)).not.toBeInTheDocument();
+    const medium = screen.getByRole('listitem', { name: 'Medium' });
+    expect(within(medium).queryByText(/troppo pesante per il processore/)).not.toBeInTheDocument();
+  });
+
+  it('shows the PC and model details in an «i» tooltip on hover and on keyboard focus', async () => {
+    const { user } = setup({ gpus: ['NVIDIA GeForce RTX 3060'], gpuVramGb: 12 });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const small = await screen.findByRole('listitem', { name: 'Small' });
+    const info = within(small).getByRole('button', { name: 'Dettagli di Small' });
+    const tip = within(small).getByRole('tooltip', { hidden: true });
+    expect(info).toHaveAttribute('aria-describedby', tip.id);
+    expect(tip).toHaveAttribute('data-open', 'false');
+
+    await user.hover(info);
+    expect(tip).toHaveAttribute('data-open', 'true');
+    expect(tip).toHaveTextContent('Processore: 8 core logici');
+    expect(tip).toHaveTextContent('Memoria video: 12 GB');
+    expect(tip).toHaveTextContent('Memoria richiesta');
+    expect(tip).toHaveTextContent('Affidabilità');
+    await user.unhover(info);
+    expect(tip).toHaveAttribute('data-open', 'false');
+
+    act(() => info.focus());
+    expect(tip).toHaveAttribute('data-open', 'true');
+    await user.keyboard('{Escape}');
+    expect(tip).toHaveAttribute('data-open', 'false');
+  });
+
+  it('lists the engines each model uses', async () => {
+    const { user } = setup({ gpus: ['NVIDIA GeForce RTX 3060'], gpuVramGb: 12 });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const small = await screen.findByRole('listitem', { name: 'Small' });
+    const engines = within(small).getByRole('list', { name: 'Motori usati' });
+    expect(within(engines).getByText('Trascrizione: Whisper sulla scheda video')).toBeInTheDocument();
+    expect(within(engines).getByText(/Controllo ortografico/)).toBeInTheDocument();
+    expect(within(engines).getByText(/Punteggiatura e frasi/)).toBeInTheDocument();
+    const parakeet = screen.getByRole('listitem', { name: /Parakeet/ });
+    expect(within(parakeet).getByText('Trascrizione: sherpa-onnx sul processore')).toBeInTheDocument();
+  });
+
+  it('runs the Test bench on every installed model and lists the measured speed', async () => {
+    const { user } = setup({ installed: ['base', 'small'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+    expect(within(bench).getByText('Nessuna misura ancora.')).toBeInTheDocument();
+    expect(within(bench).getByText(/file di riferimento ufficiale/)).toBeInTheDocument();
+
+    await user.click(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' }));
+
+    expect(await screen.findByText('Test bench completato.')).toBeInTheDocument();
+    const table = within(bench).getByRole('table', { name: 'Risultati del test' });
+    expect(within(within(table).getByRole('row', { name: /Base/ })).getByText(/32×? il tempo reale|32 il tempo reale|32×/)).toBeInTheDocument();
+    expect(within(within(table).getByRole('row', { name: /Small/ })).getByText(/10,7/)).toBeInTheDocument();
+  });
+
+  it('shows address, hash and license before downloading the official reference file, and downloads only after confirming', async () => {
+    const { user } = setup({ installed: ['base'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+
+    await user.click(within(bench).getByRole('button', { name: 'Scarica il file ufficiale e avvia' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Scaricare il file di riferimento?' });
+    expect(within(dialog).getByText(/https:\/\/archive\.org\/download\//)).toBeInTheDocument();
+    expect(within(dialog).getByText(/4d0f7bfe60934ce8/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Pubblico dominio/)).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Annulla' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(within(bench).getByText('Nessuna misura ancora.')).toBeInTheDocument();
+
+    await user.click(within(bench).getByRole('button', { name: 'Scarica il file ufficiale e avvia' }));
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Scarica e avvia' }));
+
+    expect(await screen.findByText('Test bench completato.')).toBeInTheDocument();
+    expect(await within(bench).findByRole('button', { name: 'Usa il file ufficiale e avvia' })).toBeInTheDocument();
+  });
+
+  it('can cancel the Test bench and keeps what was already measured', async () => {
+    const { user } = setup({ installed: ['base', 'small'], tick: 20 });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+
+    await user.click(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' }));
+    await user.click(await within(bench).findByRole('button', { name: 'Annulla il test' }));
+
+    expect(await screen.findByText(/Test bench annullato/)).toBeInTheDocument();
+    expect(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' })).toBeEnabled();
+  });
+
+  it('lists saved Test bench measurements as valid', async () => {
+    const { user } = setup({ installed: ['base'], benchmark: { base: 8 } });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+
+    const row = await within(bench).findByRole('row', { name: /Base/ });
+    expect(within(row).getByText('Valida')).toBeInTheDocument();
+  });
+
+  it('estimates the time of the whole queue from the Test bench before starting', async () => {
+    const { user } = setup({ installed: ['base'], batchFiles: ['a.mp3', 'b.mp3'], benchmark: { base: 8 } });
+
+    await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
+
+    const estimate = await screen.findByTestId('queue-estimate');
+    await waitFor(() => expect(estimate).toHaveTextContent(/Tempo stimato: circa/));
+    expect(estimate).toHaveTextContent(/Test bench del/);
+  });
+
+  it('does not invent a time estimate without a valid Test bench measurement', async () => {
+    const { user } = setup({ installed: ['base'], batchFiles: ['a.mp3', 'b.mp3'] });
+
+    await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
+
+    expect(await screen.findByTestId('queue-estimate')).toHaveTextContent('Per stimare il tempo, esegui il Test bench nella sezione Modelli.');
   });
 
   it('transcribes a file and shows the model actually used', async () => {
@@ -396,14 +576,16 @@ describe('Nuovi modelli e GPU', () => {
 
     const parakeet = await screen.findByRole('listitem', { name: 'Parakeet TDT 0.6B v3 (int8)' });
     expect(within(parakeet).getByText('Anteprima')).toBeInTheDocument();
-    expect(within(parakeet).getByText(/Motore: sherpa-onnx/)).toBeInTheDocument();
-    const badge = within(parakeet).getByText('Affidabilità ~97%');
-    expect(badge).toHaveAttribute('title', expect.stringContaining('non misurato da CodexVTT'));
+    expect(within(parakeet).getByText(/Trascrizione: sherpa-onnx/)).toBeInTheDocument();
+    // L'affidabilità sta nella «i» del modello, non più come testo fisso nella scheda.
+    const tip = within(parakeet).getByRole('tooltip', { hidden: true });
+    expect(tip).toHaveTextContent('Affidabilità ~97%');
+    expect(tip).toHaveTextContent('non misurato da CodexVTT');
     expect(within(parakeet).getByText(/by NVIDIA, licensed under CC-BY-4\.0/)).toBeInTheDocument();
 
     const base = screen.getByRole('listitem', { name: 'Base' });
-    expect(within(base).getByText(/Motore: Whisper/)).toBeInTheDocument();
-    expect(within(base).getByText(/Affidabilità non ancora misurata/)).toBeInTheDocument();
+    expect(within(base).getByText(/Trascrizione: Whisper/)).toBeInTheDocument();
+    expect(within(base).getByRole('tooltip', { hidden: true })).toHaveTextContent('Affidabilità non ancora misurata');
     expect(within(base).queryByText('Anteprima')).not.toBeInTheDocument();
 
     const canary = screen.getByRole('listitem', { name: 'Canary 1B v2 (int8)' });

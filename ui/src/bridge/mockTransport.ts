@@ -1,5 +1,8 @@
 import type { Transport } from './client';
 import type {
+  BenchmarkEntry,
+  BenchmarkProgress,
+  BenchmarkState,
   AppSettings,
   Collection,
   CollectionColor,
@@ -23,6 +26,8 @@ export interface MockOptions {
   failures?: Record<string, string>;
   /** Simula l'annullamento dei dialog di sistema. */
   cancelDialogs?: boolean;
+  /** Il test della cartella di lavoro fallisce con questo codice (not_found, cannot_write…). */
+  folderTestError?: string;
   installed?: string[];
   uiLanguage?: 'it' | 'en';
   /** Punti percentuali per ogni passo della trascrizione simulata (predefinito 25). */
@@ -41,6 +46,10 @@ export interface MockOptions {
   host?: 'desktop' | 'server';
   /** Schede video rilevate (predefinito: nessuna). */
   gpus?: string[];
+  /** Memoria video (GB) della scheda dedicata: con `gpus` simula Whisper sulla scheda video. */
+  gpuVramGb?: number;
+  /** Misure del Test bench già presenti, per id del modello (velocità in multipli del tempo reale). */
+  benchmark?: Record<string, number>;
   /** Stato iniziale degli aggiornamenti (predefinito: installata e aggiornata). */
   updates?: UpdateStatus;
 }
@@ -59,13 +68,15 @@ export function createMockTransport(options: MockOptions = {}): Transport {
   const event = (name: string, payload?: unknown) => emit({ v: 1, type: 'event', event: name, payload });
   const later = (fn: () => void, steps = 1) => setTimeout(fn, tick * steps);
 
+  const gpuOn = (options.gpus?.length ?? 0) > 0 && options.gpuVramGb !== undefined;
+  const slow: ModelInfo['issues'] = gpuOn ? [] : ['tooSlow'];
   const models: ModelInfo[] = [
     model('tiny', 'Tiny', 77_691_713, 0.27, 1),
     model('base', 'Base', 147_951_465, 0.39, 2),
     model('small', 'Small', 487_601_967, 0.85, 6),
     model('large-v3-turbo-q5_0', 'Large v3 Turbo (q5_0)', 574_041_195, 1.2, 10),
-    model('medium', 'Medium', 1_533_763_059, 2.1, 16, ['tooSlow']),
-    model('large-v3', 'Large v3', 3_095_033_483, 3.9, 32, ['tooSlow']),
+    model('medium', 'Medium', 1_533_763_059, 2.1, 16, slow),
+    model('large-v3', 'Large v3', 3_095_033_483, 3.9, 32, slow),
     {
       ...model('parakeet-tdt-0.6b-v3-int8', 'Parakeet TDT 0.6B v3 (int8)', 670_478_772, 1.5, 2),
       engine: 'sherpa-transducer',
@@ -94,6 +105,22 @@ export function createMockTransport(options: MockOptions = {}): Transport {
   }
 
   let settings: AppSettings = { language: 'auto', showMascot: true, exportIncludeHeader: false, uiLanguage: options.uiLanguage };
+  const benchEntries = new Map<string, BenchmarkEntry>();
+  const benchEntry = (modelId: string, speed: number): BenchmarkEntry => ({
+    modelId,
+    runtime: 'Cpu',
+    threads: 8,
+    audioSeconds: 90,
+    loadSeconds: 2,
+    speed,
+    measuredAt: '2026-10-24T10:00:00Z',
+    stale: 'none',
+  });
+  for (const [id, speed] of Object.entries(options.benchmark ?? {})) benchEntries.set(id, benchEntry(id, speed));
+  let referenceCached = false;
+  let benchRunning = false;
+  let benchCancel = false;
+  const benchSnapshot = (): BenchmarkState => ({ running: benchRunning, entries: [...benchEntries.values()] });
   let historyDirectory = 'C:\\Users\\utente\\Documents\\CodexVTT\\history';
   const history = new Map<string, TranscriptionResult>();
   const saveHistory = (result: TranscriptionResult) => {
@@ -198,6 +225,13 @@ export function createMockTransport(options: MockOptions = {}): Transport {
       cpuFeatures: 'Avx, Avx2, Fma, F16C',
       freeDiskBytes: 120 * GB,
       gpus: options.gpus ?? [],
+      ...(gpuOn
+        ? {
+            gpuDetails: (options.gpus ?? []).map((name) => ({ name, kind: 'dedicata' as const, vramBytes: options.gpuVramGb! * GB })),
+            gpuAcceleration: true,
+            gpuVramBytes: options.gpuVramGb! * GB,
+          }
+        : {}),
     },
     supportsStandardRuntime: true,
     supportedAudioExtensions: ['.wav', '.mp3', '.m4a', '.aac', '.wma', '.flac', '.ogg', '.opus'],
@@ -279,7 +313,9 @@ export function createMockTransport(options: MockOptions = {}): Transport {
           recommendedId: 'large-v3-turbo-q5_0',
           reasons: [
             { code: 'ram_limit', args: { totalBytes: String(16 * 2 ** 30), limitBytes: String(8 * GB) } },
-            { code: 'cpu_budget', args: { cores: '8', maxCost: '10' } },
+            gpuOn
+              ? { code: 'gpu_budget', args: { cores: '8', vramBytes: String(options.gpuVramGb! * GB), limitBytes: String(Math.floor(options.gpuVramGb! * GB * 0.8)) } }
+              : { code: 'cpu_budget', args: { cores: '8', maxCost: '10' } },
             { code: 'recommended', args: { modelId: 'large-v3-turbo-q5_0', model: 'Large v3 Turbo (q5_0)' } },
           ],
           hardware: system.hardware,
@@ -495,13 +531,72 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         titles.delete(String(payload.id));
         for (const c of collections) c.entryIds = c.entryIds.filter((x) => x !== payload.id);
         return { deleted: true };
+      case 'benchmark.get':
+        return benchSnapshot();
+      case 'benchmark.reference':
+        return {
+          available: true,
+          url: 'https://archive.org/download/avventure_pinocchio_librivox/avventurepinocchio_06_collodi_64kb.mp3',
+          title: 'Le avventure di Pinocchio, capitolo 6 (LibriVox)',
+          sizeBytes: 1_764_750,
+          sha256: '4d0f7bfe60934ce8c7490c3525ab118a55e31f2fe26bcb8d11e91ec1bc25f148',
+          license: 'Pubblico dominio',
+          cached: referenceCached,
+        };
+      case 'benchmark.estimate': {
+        const found = benchEntries.get(String(payload.modelId));
+        if (!found || found.stale !== 'none') return { basis: 'none' };
+        const total = (payload.durations as number[]).filter((d) => d > 0).reduce((a, b) => a + b, 0);
+        return { basis: 'benchmark', seconds: total > 0 ? found.loadSeconds + total / found.speed : 0, measuredAt: found.measuredAt, runtime: found.runtime };
+      }
+      case 'benchmark.cancel':
+        benchCancel = true;
+        return { cancelling: true };
+      case 'benchmark.start': {
+        if (options.cancelDialogs) return null;
+        if (payload?.useReference) referenceCached = true;
+        if (benchRunning) throw { code: 'transcription_busy', message: 'busy' };
+        const ready = models.filter((m) => m.state === 'ready');
+        benchRunning = true;
+        benchCancel = false;
+        const outcomes: BenchmarkProgress[] = [];
+        const step = (i: number) => {
+          if (benchCancel) {
+            benchRunning = false;
+            event('benchmark.cancelled', { snapshot: benchSnapshot() });
+            return;
+          }
+          if (i >= ready.length) {
+            benchRunning = false;
+            event('benchmark.completed', { outcomes, snapshot: benchSnapshot() });
+            return;
+          }
+          const m = ready[i];
+          event('benchmark.progress', { modelId: m.id, index: i, total: ready.length, phase: 'running' });
+          later(() => {
+            const speed = Math.round((64 / m.relativeCost) * 10) / 10;
+            benchEntries.set(m.id, benchEntry(m.id, speed));
+            const done: BenchmarkProgress = { modelId: m.id, index: i, total: ready.length, phase: 'done', speed, loadSeconds: 2 };
+            outcomes.push(done);
+            event('benchmark.progress', done);
+            step(i + 1);
+          });
+        };
+        later(() => step(0));
+        return { started: true, fileName: 'riferimento.wav', duration: 90 };
+      }
       case 'history.openFolder':
         return { opened: true };
       case 'diagnostics.openLogs':
         return { opened: true };
       case 'history.pickFolder':
         if (options.cancelDialogs) return null;
-        historyDirectory = 'D:\\Trascrizioni';
+        return { directory: 'D:\\Trascrizioni' };
+      case 'history.testFolder':
+        return options.folderTestError ? { ok: false, error: options.folderTestError } : { ok: true };
+      case 'history.setFolder':
+        if (options.folderTestError) throw { code: 'folder_test_failed', message: options.folderTestError };
+        historyDirectory = String(payload.directory);
         settings = { ...settings, historyDirectory };
         return settings;
       default:

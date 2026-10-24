@@ -38,7 +38,11 @@ export function RunStatus({ app }: { app: CodexVttState }) {
         {progress.status === 'transcribing' && (
           <span className="muted" data-testid="eta">
             {' · '}
-            {remaining !== undefined ? t('etaRemaining', { time: formatRemaining(remaining) }) : t('etaCalculating')}
+            {remaining !== undefined
+              ? t('etaRemaining', { time: formatRemaining(remaining) })
+              : app.estimate?.basis === 'benchmark' && app.estimate.seconds
+                ? `${t('etaCalculating')} ${t('etaInitial', { time: formatRemaining(app.estimate.seconds) })}`
+                : t('etaCalculating')}
             {queueRemaining !== undefined && ` · ${t('etaQueue', { time: formatRemaining(queueRemaining) })}`}
           </span>
         )}

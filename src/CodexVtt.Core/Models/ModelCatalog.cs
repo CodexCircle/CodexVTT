@@ -75,7 +75,8 @@ public sealed record SelectionRules(
     double MaxRamFraction,
     double DiskHeadroomFraction,
     IReadOnlyList<CostBudget> CostBudgetByCores,
-    int NoAvxMaxCost);
+    int NoAvxMaxCost,
+    double MaxVramFraction = 0.8);
 
 /// <summary>
 /// Catalogo dei modelli incluso nell'app. È l'unica fonte di verità per URL e hash:

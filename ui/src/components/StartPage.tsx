@@ -1,5 +1,6 @@
 import { transcriptionLanguages, useI18n, type MessageKey } from '../i18n/i18n';
 import type { CodexVttState } from '../state/useCodexVtt';
+import { FolderControl } from './FolderControl';
 import { Icon } from './Icon';
 import { RunStatus } from './RunStatus';
 
@@ -23,10 +24,34 @@ export function StartPage({ app, language, onLanguage, needsLanguage, running, o
   const inQueue = app.queue.length > 0;
   const pending = app.queue.filter((i) => i.status === 'queued' || (i.status === 'failed' && i.audioId)).length;
   const queuedDuration = app.queue.reduce((sum, i) => sum + (i.info?.duration ?? 0), 0);
+  const { formatRemaining, formatShortDate } = useI18n();
+  // Stima in anticipo dalla misura del Test bench per il modello scelto; senza misura valida nessun numero inventato.
+  const estimateLine =
+    app.estimate?.basis === 'benchmark' && app.estimate.seconds !== undefined && app.estimate.seconds > 0 ? (
+      <p className="muted" data-testid="queue-estimate">
+        {t('estimateQueue', { time: formatRemaining(app.estimate.seconds), date: formatShortDate(app.estimate.measuredAt ?? ''), runtime: app.estimate.runtime ?? '' })}
+      </p>
+    ) : (
+      <p className="muted" data-testid="queue-estimate">
+        {t('estimateNone')}
+      </p>
+    );
 
   return (
     <div className="page">
       <h2 className="section-title">{t('newTranscription')}</h2>
+
+      {/* Prima apertura: nessuna cartella scelta e nessuna trascrizione salvata. */}
+      {app.desktop && app.settings && !app.settings.historyDirectory && (app.history?.entries.length ?? 0) === 0 && (
+        <section className="card" aria-labelledby="folder-onboarding">
+          <h3 id="folder-onboarding">{t('folderOnboardingTitle')}</h3>
+          <p className="muted">{t('folderOnboardingText')}</p>
+          <p className="folder">
+            {t('historyFolder')}: <code>{app.history?.directory}</code>
+          </p>
+          <FolderControl app={app} />
+        </section>
+      )}
 
       <button
         type="button"
@@ -90,6 +115,7 @@ export function StartPage({ app, language, onLanguage, needsLanguage, running, o
                   <b>{t('queueCount', { count: app.queue.length })}</b>
                   <span className="muted">{formatDuration(queuedDuration)}</span>
                 </div>
+                {estimateLine}
                 {pending > 0 && (
                   <button type="button" className="btn pri" disabled={needsLanguage} onClick={onStartQueue}>
                     {t('queueStart')}
@@ -105,6 +131,7 @@ export function StartPage({ app, language, onLanguage, needsLanguage, running, o
                       {formatDuration(app.audio.info.duration)} · {app.audio.info.format.toUpperCase()} · {formatBytes(app.audio.info.sizeBytes)}
                     </span>
                   </div>
+                  {estimateLine}
                   <button type="button" className="btn pri" disabled={needsLanguage} onClick={onStart}>
                     {t('start')}
                   </button>

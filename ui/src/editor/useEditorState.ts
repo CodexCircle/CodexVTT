@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
 import type { TranscriptionResult } from '../bridge/protocol';
 import { firstSpeaker, segmentsFromResult, speakerColors, type EditSegment, type EditSpeaker } from './model';
+import { reorganizeSegments } from './reflow';
 import { checkSpelling, type SpellIssue } from './spellcheck';
 
 interface Snapshot {
@@ -15,6 +16,7 @@ export function useEditorState(result: TranscriptionResult) {
   const [future, setFuture] = useState<Snapshot[]>([]);
   const [issues, setIssues] = useState<SpellIssue[]>([]);
   const [spellStatus, setSpellStatus] = useState<'idle' | 'done'>('idle');
+  const [reflowStatus, setReflowStatus] = useState<{ before: number; after: number; changed: boolean }>();
   const uid = useRef(0);
   const nextSegmentId = useRef(result.segments.length + 1);
   const nextRev = useRef(1);
@@ -35,6 +37,7 @@ export function useEditorState(result: TranscriptionResult) {
     speakers: state.speakers,
     issues,
     spellStatus,
+    reflowStatus,
     dirty: past.length > 0,
     canUndo: past.length > 0,
     canRedo: future.length > 0,
@@ -94,6 +97,7 @@ export function useEditorState(result: TranscriptionResult) {
       setFuture((f) => [state, ...f]);
       setState(previous);
       setIssues([]);
+      setReflowStatus(undefined);
     },
 
     redo() {
@@ -108,6 +112,21 @@ export function useEditorState(result: TranscriptionResult) {
     runSpellCheck() {
       setIssues(checkSpelling(state.segments, () => ++uid.current));
       setSpellStatus('done');
+    },
+
+    /** «Punteggiatura e frasi»: unisce i segmenti in blocchi più lunghi con regole su punteggiatura e tempi (nessun motore IA). Si annulla con Annulla. */
+    reorganize() {
+      const { segments, before, after } = reorganizeSegments(state.segments);
+      const changed = segments.some((g, i) => g.text !== state.segments[i]?.text || g.end !== state.segments[i]?.end) || after !== before;
+      setReflowStatus({ before, after, changed });
+      if (!changed) return;
+      // Ogni blocco cambiato riparte con un testo nuovo nel campo modificabile.
+      const original = new Map(state.segments.map((g) => [g.id, g]));
+      apply((s) => ({
+        ...s,
+        segments: segments.map((g) => (original.get(g.id)?.text === g.text ? g : { ...g, rev: nextRev.current++ })),
+      }));
+      setIssues([]);
     },
 
     acceptIssue(id: number) {

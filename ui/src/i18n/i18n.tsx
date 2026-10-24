@@ -73,6 +73,10 @@ export function createI18n(locale: Locale) {
         return limits?.heaviestFit
           ? t('reason_cpu_budget', { cores: a.cores, model: limits.heaviestFit.displayName })
           : t('reason_cpu_budget_generic', { cores: a.cores });
+      case 'gpu_budget':
+        return a.vramBytes !== undefined
+          ? t('reason_gpu_budget', { vram: formatBytes(Number(a.vramBytes)) })
+          : t('reason_gpu_budget_unknown');
       case 'compat_runtime':
         return t('reason_compat_runtime');
       case 'recommended':
@@ -88,6 +92,9 @@ export function createI18n(locale: Locale) {
   const issueText = (m: ModelInfo, issue: CompatibilityIssue, limits?: ModelLimits) => {
     if (issue === 'insufficientMemory' && limits?.ramLimitBytes !== undefined) {
       return t('issue_insufficientMemory_detail', { ram: formatBytes(m.ramRequiredBytes), limit: formatBytes(limits.ramLimitBytes) });
+    }
+    if (issue === 'insufficientVram' && limits?.vramBytes !== undefined) {
+      return t('issue_insufficientVram_detail', { need: formatBytes(m.ramRequiredBytes), vram: formatBytes(limits.vramBytes) });
     }
     const fit = limits?.heaviestFit;
     if (issue === 'tooSlow' && fit && m.relativeCost > fit.relativeCost) {
