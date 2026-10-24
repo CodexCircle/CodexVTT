@@ -2724,3 +2724,30 @@ input[type='text'] {
 .model__head {
   padding-right: 32px;
 }
+
+/* Test bench */
+.bench__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.bench__table th,
+.bench__table td {
+  padding: 6px 8px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.bench__table tbody th {
+  font-weight: 600;
+}
+
+.bench__stale td,
+.bench__stale th {
+  color: var(--muted);
+}
+
+.bench progress {
+  width: 100%;
+}

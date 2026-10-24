@@ -2,6 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BridgeCallError, type BridgeClient } from '../bridge/client';
 import type {
   AppSettings,
+  BenchmarkEstimate,
+  BenchmarkProgress,
+  BenchmarkState,
   BridgeError,
   CollectionColor,
   DownloadProgress,
@@ -69,6 +72,9 @@ export function useCodexVtt(client: BridgeClient) {
   const [updates, setUpdates] = useState<UpdateStatus>();
   const [updateProgress, setUpdateProgress] = useState<number>();
   const [checkingUpdates, setCheckingUpdates] = useState(false);
+  const [benchmark, setBenchmark] = useState<BenchmarkState>({ running: false, entries: [] });
+  const [benchmarkProgress, setBenchmarkProgress] = useState<BenchmarkProgress>();
+  const [estimate, setEstimate] = useState<BenchmarkEstimate>();
   const queue = queueState.items;
   const queueRunning = queueState.running;
 
@@ -94,13 +100,15 @@ export function useCodexVtt(client: BridgeClient) {
   const load = useCallback(
     () =>
       guard(async () => {
-        const [info, s, q, active, u] = await Promise.all([
+        const [info, s, q, active, u, bench] = await Promise.all([
           client.call('system.info'),
           client.call('settings.get'),
           client.call('queue.get'),
           client.call('transcription.active'),
           client.call('updates.status'),
+          client.call('benchmark.get').catch(() => ({ running: false, entries: [] }) as BenchmarkState),
         ]);
+        setBenchmark(bench);
         setSystem(info);
         setSettings(s);
         setUpdates(u);
@@ -158,6 +166,22 @@ export function useCodexVtt(client: BridgeClient) {
         setUpdateProgress(undefined);
         setError(e);
       }),
+      client.on('benchmark.progress', (p) => setBenchmarkProgress(p)),
+      client.on('benchmark.completed', ({ snapshot }) => {
+        setBenchmark(snapshot);
+        setBenchmarkProgress(undefined);
+        setNotice({ key: 'benchDone' });
+      }),
+      client.on('benchmark.cancelled', ({ snapshot }) => {
+        setBenchmark(snapshot);
+        setBenchmarkProgress(undefined);
+        setNotice({ key: 'benchCancelled' });
+      }),
+      client.on('benchmark.failed', ({ error: e, snapshot }) => {
+        setBenchmark(snapshot);
+        setBenchmarkProgress(undefined);
+        setError(e);
+      }),
       client.on('queue.changed', (q) => setQueueState(q)),
       client.on('queue.finished', ({ done, failed }) => {
         setProgress(undefined);
@@ -174,6 +198,30 @@ export function useCodexVtt(client: BridgeClient) {
     () => readyModels.find((m) => m.id === settings?.selectedModelId) ?? readyModels[0],
     [readyModels, settings?.selectedModelId],
   );
+
+  // Stima del tempo per i file ancora da trascrivere, dall'ultima misura valida del Test bench per il modello scelto.
+  const pendingDurations = useMemo(() => {
+    const queued = queueState.items.filter((i) => i.status === 'queued' && i.info).map((i) => i.info!.duration);
+    return queued.length > 0 ? queued : audio ? [audio.info.duration] : [];
+  }, [queueState.items, audio]);
+  const pendingKey = pendingDurations.join(',');
+  const estimateModelId = activeModel?.id;
+  useEffect(() => {
+    let current = true;
+    if (!estimateModelId || pendingDurations.length === 0) {
+      setEstimate(undefined);
+      return;
+    }
+    client
+      .call('benchmark.estimate', { modelId: estimateModelId, durations: pendingDurations })
+      .then((e) => current && setEstimate(e))
+      .catch(() => current && setEstimate(undefined));
+    return () => {
+      current = false;
+    };
+    // pendingKey rappresenta il contenuto di pendingDurations; benchmark.entries rifà la stima dopo un nuovo test.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [client, estimateModelId, pendingKey, benchmark.entries]);
 
   // Nell'app il dialog nativo; nel browser (versione server) il selettore del browser e il caricamento sul server.
   const pickBatch = useCallback(async (): Promise<PickedBatch | null> => {
@@ -257,6 +305,17 @@ export function useCodexVtt(client: BridgeClient) {
         setUpdateProgress(0);
         await client.call('updates.apply');
       }),
+    benchmark,
+    benchmarkProgress,
+    /** Stima del tempo dei file in attesa, o `basis: none` se manca una misura valida per il modello scelto. */
+    estimate,
+    pendingDurations,
+    startBenchmark: () =>
+      guard(async () => {
+        const started = await client.call('benchmark.start');
+        if (started) setBenchmark((b) => ({ ...b, running: true }));
+      }),
+    cancelBenchmark: () => guard(() => client.call('benchmark.cancel')),
     /** false nella versione server: niente dialog né Esplora file sul PC del core. */
     desktop: system?.host !== 'server',
     jobId,

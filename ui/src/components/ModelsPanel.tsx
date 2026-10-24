@@ -3,6 +3,7 @@ import type { ModelInfo } from '../bridge/protocol';
 import { useI18n, type MessageKey } from '../i18n/i18n';
 import { modelLimits } from '../state/modelLimits';
 import type { CodexVttState } from '../state/useCodexVtt';
+import { BenchPanel } from './BenchPanel';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ModelInfoTip } from './ModelInfoTip';
 
@@ -52,6 +53,8 @@ export function ModelsPanel({ app }: { app: CodexVttState }) {
           </div>
         )}
       </div>
+
+      <BenchPanel app={app} />
 
       {/* Importare richiede il dialog "Apri" sul PC del core: solo nell'app desktop. */}
       {app.desktop && (

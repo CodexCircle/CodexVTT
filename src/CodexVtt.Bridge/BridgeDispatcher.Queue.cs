@@ -60,6 +60,8 @@ public sealed partial class BridgeDispatcher
 
     private QueueView QueueStart(QueueStartRequest request)
     {
+        if (_benchmark.Running)
+            throw new CodexVttException(ErrorCodes.TranscriptionBusy, "È in corso il test bench dei modelli.");
         var modelId = request.ModelId ?? _settings.Load().SelectedModelId
             ?? throw new CodexVttException(ErrorCodes.ModelNotInstalled, "Nessun modello selezionato.");
         RequireModel(modelId);

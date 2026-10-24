@@ -228,6 +228,46 @@ export interface FolderTestResult {
   error?: string;
 }
 
+/** Perché una misura del Test bench non vale più (`none` = vale). */
+export type BenchmarkStale = 'none' | 'hardwareChanged' | 'modelChanged' | 'runtimeChanged';
+
+export interface BenchmarkEntry {
+  modelId: string;
+  /** Runtime usato nella misura, per esempio «Cpu» o «Vulkan (GPU)». */
+  runtime: string;
+  threads?: number;
+  audioSeconds: number;
+  /** Tempo fisso (caricamento del modello). */
+  loadSeconds: number;
+  /** Secondi di audio per secondo reale dopo il caricamento (4 = quattro volte il tempo reale). */
+  speed: number;
+  measuredAt: string;
+  stale: BenchmarkStale;
+}
+
+export interface BenchmarkState {
+  running: boolean;
+  entries: BenchmarkEntry[];
+}
+
+export interface BenchmarkProgress {
+  modelId: string;
+  index: number;
+  total: number;
+  phase: 'running' | 'done' | 'failed';
+  speed?: number;
+  loadSeconds?: number;
+  errorCode?: string;
+}
+
+/** `none` = nessuna misura valida per il modello: la UI non inventa numeri. */
+export interface BenchmarkEstimate {
+  basis: 'none' | 'benchmark';
+  seconds?: number;
+  measuredAt?: string;
+  runtime?: string;
+}
+
 export const palettes = ['sabbia', 'natale', 'halloween', 'ciliegia'] as const;
 export type Palette = (typeof palettes)[number];
 
@@ -349,6 +389,12 @@ export interface Commands {
   'history.openFolder': { req: void; res: { opened: boolean } };
   'diagnostics.openLogs': { req: void; res: { opened: boolean } };
   /** Apre la selezione della cartella: non la salva, va prima testata. */
+  /** Sceglie il file di riferimento (dialog nativo) e avvia il test su tutti i modelli pronti; null se si annulla. */
+  'benchmark.start': { req: void; res: { started: boolean; fileName: string; duration: number } | null };
+  'benchmark.cancel': { req: void; res: { cancelling: boolean } };
+  'benchmark.get': { req: void; res: BenchmarkState };
+  /** Stima per file di queste durate (secondi) con il modello indicato, dall'ultima misura valida. */
+  'benchmark.estimate': { req: { modelId: string; durations: number[] }; res: BenchmarkEstimate };
   'history.pickFolder': { req: void; res: { directory: string } | null };
   'history.testFolder': { req: { directory: string }; res: FolderTestResult };
   /** Salva la cartella solo se il test riesce (altrimenti errore folder_test_failed e resta la precedente). */
@@ -370,6 +416,10 @@ export interface Events {
   'updates.progress': { percent: number };
   'updates.failed': BridgeError;
   'queue.changed': QueueState;
+  'benchmark.progress': BenchmarkProgress;
+  'benchmark.completed': { outcomes: BenchmarkProgress[]; snapshot: BenchmarkState };
+  'benchmark.cancelled': { snapshot: BenchmarkState };
+  'benchmark.failed': { error: BridgeError; snapshot: BenchmarkState };
   'queue.finished': { done: number; failed: number };
   /** Eventi locali del trasporto web: il collegamento con il server è caduto o è tornato. */
   'connection.lost': undefined;

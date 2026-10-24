@@ -1,5 +1,8 @@
 import type { Transport } from './client';
 import type {
+  BenchmarkEntry,
+  BenchmarkProgress,
+  BenchmarkState,
   AppSettings,
   Collection,
   CollectionColor,
@@ -45,6 +48,8 @@ export interface MockOptions {
   gpus?: string[];
   /** Memoria video (GB) della scheda dedicata: con `gpus` simula Whisper sulla scheda video. */
   gpuVramGb?: number;
+  /** Misure del Test bench già presenti, per id del modello (velocità in multipli del tempo reale). */
+  benchmark?: Record<string, number>;
   /** Stato iniziale degli aggiornamenti (predefinito: installata e aggiornata). */
   updates?: UpdateStatus;
 }
@@ -100,6 +105,21 @@ export function createMockTransport(options: MockOptions = {}): Transport {
   }
 
   let settings: AppSettings = { language: 'auto', showMascot: true, exportIncludeHeader: false, uiLanguage: options.uiLanguage };
+  const benchEntries = new Map<string, BenchmarkEntry>();
+  const benchEntry = (modelId: string, speed: number): BenchmarkEntry => ({
+    modelId,
+    runtime: 'Cpu',
+    threads: 8,
+    audioSeconds: 90,
+    loadSeconds: 2,
+    speed,
+    measuredAt: '2026-10-24T10:00:00Z',
+    stale: 'none',
+  });
+  for (const [id, speed] of Object.entries(options.benchmark ?? {})) benchEntries.set(id, benchEntry(id, speed));
+  let benchRunning = false;
+  let benchCancel = false;
+  const benchSnapshot = (): BenchmarkState => ({ running: benchRunning, entries: [...benchEntries.values()] });
   let historyDirectory = 'C:\\Users\\utente\\Documents\\CodexVTT\\history';
   const history = new Map<string, TranscriptionResult>();
   const saveHistory = (result: TranscriptionResult) => {
@@ -510,6 +530,49 @@ export function createMockTransport(options: MockOptions = {}): Transport {
         titles.delete(String(payload.id));
         for (const c of collections) c.entryIds = c.entryIds.filter((x) => x !== payload.id);
         return { deleted: true };
+      case 'benchmark.get':
+        return benchSnapshot();
+      case 'benchmark.estimate': {
+        const found = benchEntries.get(String(payload.modelId));
+        if (!found || found.stale !== 'none') return { basis: 'none' };
+        const total = (payload.durations as number[]).filter((d) => d > 0).reduce((a, b) => a + b, 0);
+        return { basis: 'benchmark', seconds: total > 0 ? found.loadSeconds + total / found.speed : 0, measuredAt: found.measuredAt, runtime: found.runtime };
+      }
+      case 'benchmark.cancel':
+        benchCancel = true;
+        return { cancelling: true };
+      case 'benchmark.start': {
+        if (options.cancelDialogs) return null;
+        if (benchRunning) throw { code: 'transcription_busy', message: 'busy' };
+        const ready = models.filter((m) => m.state === 'ready');
+        benchRunning = true;
+        benchCancel = false;
+        const outcomes: BenchmarkProgress[] = [];
+        const step = (i: number) => {
+          if (benchCancel) {
+            benchRunning = false;
+            event('benchmark.cancelled', { snapshot: benchSnapshot() });
+            return;
+          }
+          if (i >= ready.length) {
+            benchRunning = false;
+            event('benchmark.completed', { outcomes, snapshot: benchSnapshot() });
+            return;
+          }
+          const m = ready[i];
+          event('benchmark.progress', { modelId: m.id, index: i, total: ready.length, phase: 'running' });
+          later(() => {
+            const speed = Math.round((64 / m.relativeCost) * 10) / 10;
+            benchEntries.set(m.id, benchEntry(m.id, speed));
+            const done: BenchmarkProgress = { modelId: m.id, index: i, total: ready.length, phase: 'done', speed, loadSeconds: 2 };
+            outcomes.push(done);
+            event('benchmark.progress', done);
+            step(i + 1);
+          });
+        };
+        later(() => step(0));
+        return { started: true, fileName: 'riferimento.wav', duration: 90 };
+      }
       case 'history.openFolder':
         return { opened: true };
       case 'diagnostics.openLogs':

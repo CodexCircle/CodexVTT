@@ -256,6 +256,51 @@ public sealed class BridgeDispatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task Benchmark_measures_installed_models_without_touching_the_history_and_feeds_the_estimate()
+    {
+        _shell.NextOpen = _dir.File("base.bin", ModelContent);
+        Ok(await Call("models.import"));
+        Assert.Equal("none", Ok(await Call("benchmark.estimate", new { modelId = "base", durations = new[] { 60.0 } })).GetProperty("basis").GetString());
+        Assert.Empty(Ok(await Call("benchmark.get")).GetProperty("entries").EnumerateArray());
+
+        _shell.NextOpen = _dir.File("riferimento.wav", TestData.Wav(16000, 1, 12));
+        var started = Ok(await Call("benchmark.start"));
+        Assert.True(started.GetProperty("started").GetBoolean());
+        var done = await _shell.WaitForEventAsync("benchmark.completed");
+
+        Assert.Equal("done", Assert.Single(done.GetProperty("payload").GetProperty("outcomes").EnumerateArray()).GetProperty("phase").GetString());
+        var entry = Assert.Single(Ok(await Call("benchmark.get")).GetProperty("entries").EnumerateArray());
+        Assert.Equal("base", entry.GetProperty("modelId").GetString());
+        Assert.Equal("none", entry.GetProperty("stale").GetString());
+        Assert.True(entry.GetProperty("speed").GetDouble() > 0);
+        // Il test non è una trascrizione dell'utente: niente cronologia e niente eventi transcription.*.
+        Assert.Empty(Ok(await Call("history.list")).GetProperty("entries").EnumerateArray());
+        Assert.DoesNotContain(_shell.Events, e => e.GetProperty("event").GetString() is "transcription.completed" or "transcription.progress");
+
+        var estimate = Ok(await Call("benchmark.estimate", new { modelId = "base", durations = new[] { 60.0, 120.0 } }));
+        Assert.Equal("benchmark", estimate.GetProperty("basis").GetString());
+        Assert.True(estimate.GetProperty("seconds").GetDouble() > 0);
+        Assert.Equal("none", Ok(await Call("benchmark.estimate", new { modelId = "small", durations = new[] { 60.0 } })).GetProperty("basis").GetString());
+    }
+
+    [Fact]
+    public async Task Benchmark_refuses_files_of_unsuitable_length_and_cannot_start_over_a_transcription()
+    {
+        _shell.NextOpen = _dir.File("corto.wav", TestData.Wav(16000, 1, 2));
+        Assert.Equal(ErrorCodes.BenchmarkAudioInvalid, ErrorCode(await Call("benchmark.start")));
+
+        _shell.NextOpen = _dir.File("base.bin", ModelContent);
+        Ok(await Call("models.import"));
+        _shell.NextOpen = _dir.File("lungo.wav", TestData.Wav(16000, 1, 30));
+        var audio = Ok(await Call("audio.pick"));
+        Ok(await Call("settings.set", new { selectedModelId = "base", language = "it", showMascot = true }));
+        Ok(await Call("transcription.start", new { audioId = audio.GetProperty("audioId").GetString() }));
+        _shell.NextOpen = _dir.File("riferimento.wav", TestData.Wav(16000, 1, 12));
+        var busy = ErrorCode(await Call("benchmark.start"));
+        Assert.True(busy is ErrorCodes.TranscriptionBusy);
+    }
+
+    [Fact]
     public async Task Recommendation_reasons_are_codes_for_the_ui()
     {
         var reasons = Ok(await Call("models.recommend")).GetProperty("reasons").EnumerateArray().ToList();

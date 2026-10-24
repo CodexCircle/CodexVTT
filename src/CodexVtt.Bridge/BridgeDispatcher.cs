@@ -60,6 +60,7 @@ public sealed partial class BridgeDispatcher : IDisposable
         _logger = logger;
         _updates = updates;
 
+        InitBenchmark();
         _transcription.Progress += OnTranscriptionProgress;
         _transcription.Finished += OnTranscriptionFinished;
 
@@ -90,6 +91,10 @@ public sealed partial class BridgeDispatcher : IDisposable
             ["queue.clear"] = (_, _) => Task.FromResult<object?>(QueueClear()),
             ["queue.start"] = (p, _) => Task.FromResult<object?>(QueueStart(p is { ValueKind: JsonValueKind.Object } ? Read<QueueStartRequest>(p) : new QueueStartRequest(null, null))),
             ["queue.stop"] = (_, _) => Task.FromResult<object?>(QueueStop()),
+            ["benchmark.get"] = (_, _) => Task.FromResult<object?>(BenchmarkSnapshot()),
+            ["benchmark.start"] = BenchmarkStartAsync,
+            ["benchmark.cancel"] = (_, _) => Task.FromResult<object?>(BenchmarkCancel()),
+            ["benchmark.estimate"] = (p, _) => Task.FromResult<object?>(BenchmarkEstimate(Read<BenchmarkEstimateRequest>(p))),
             ["export.save"] = ExportAsync,
             ["settings.get"] = (_, _) => Task.FromResult<object?>(_settings.Load()),
             ["settings.set"] = (p, _) => Task.FromResult<object?>(SaveSettings(Read<AppSettings>(p))),
@@ -336,6 +341,8 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private object StartTranscription(StartTranscriptionRequest request)
     {
+        if (_benchmark.Running)
+            throw new CodexVttException(ErrorCodes.TranscriptionBusy, "È in corso il test bench dei modelli.");
         var modelId = request.ModelId ?? _settings.Load().SelectedModelId
             ?? throw new CodexVttException(ErrorCodes.ModelNotInstalled, "Nessun modello selezionato.");
         // V1: nessuna traduzione (issue #17), solo trascrizione nella lingua dell'audio.
@@ -598,12 +605,16 @@ public sealed partial class BridgeDispatcher : IDisposable
 
     private void OnTranscriptionProgress(JobProgress progress)
     {
+        if (_benchmark.Running)
+            return; // i job del test bench non sono trascrizioni dell'utente
         _lastProgress = progress;
         Emit("transcription.progress", progress);
     }
 
     private void OnTranscriptionFinished(TranscriptionJob job)
     {
+        if (_benchmark.Running)
+            return; // il test bench non salva nulla in cronologia
         // I job della coda arrivano alla UI con queue.changed; gli eventi transcription.* restano per quelli singoli.
         var fromQueue = IsQueueJob(job.JobId);
         string? historyId = null;

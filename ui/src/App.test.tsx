@@ -236,6 +236,60 @@ describe('App', () => {
     expect(within(parakeet).getByText('Trascrizione: sherpa-onnx sul processore')).toBeInTheDocument();
   });
 
+  it('runs the Test bench on every installed model and lists the measured speed', async () => {
+    const { user } = setup({ installed: ['base', 'small'] });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+    expect(within(bench).getByText('Nessuna misura ancora.')).toBeInTheDocument();
+    expect(within(bench).getByText(/non ancora disponibile/)).toBeInTheDocument();
+
+    await user.click(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' }));
+
+    expect(await screen.findByText('Test bench completato.')).toBeInTheDocument();
+    const table = within(bench).getByRole('table', { name: 'Risultati del test' });
+    expect(within(within(table).getByRole('row', { name: /Base/ })).getByText(/32×? il tempo reale|32 il tempo reale|32×/)).toBeInTheDocument();
+    expect(within(within(table).getByRole('row', { name: /Small/ })).getByText(/10,7/)).toBeInTheDocument();
+  });
+
+  it('can cancel the Test bench and keeps what was already measured', async () => {
+    const { user } = setup({ installed: ['base', 'small'], tick: 20 });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+
+    await user.click(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' }));
+    await user.click(await within(bench).findByRole('button', { name: 'Annulla il test' }));
+
+    expect(await screen.findByText(/Test bench annullato/)).toBeInTheDocument();
+    expect(within(bench).getByRole('button', { name: 'Scegli un file e avvia il test' })).toBeEnabled();
+  });
+
+  it('lists saved Test bench measurements as valid', async () => {
+    const { user } = setup({ installed: ['base'], benchmark: { base: 8 } });
+    await user.click(await screen.findByRole('button', { name: 'Modelli' }));
+    const bench = await screen.findByRole('region', { name: 'Test bench dei modelli' });
+
+    const row = await within(bench).findByRole('row', { name: /Base/ });
+    expect(within(row).getByText('Valida')).toBeInTheDocument();
+  });
+
+  it('estimates the time of the whole queue from the Test bench before starting', async () => {
+    const { user } = setup({ installed: ['base'], batchFiles: ['a.mp3', 'b.mp3'], benchmark: { base: 8 } });
+
+    await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
+
+    const estimate = await screen.findByTestId('queue-estimate');
+    await waitFor(() => expect(estimate).toHaveTextContent(/Tempo stimato: circa/));
+    expect(estimate).toHaveTextContent(/Test bench del/);
+  });
+
+  it('does not invent a time estimate without a valid Test bench measurement', async () => {
+    const { user } = setup({ installed: ['base'], batchFiles: ['a.mp3', 'b.mp3'] });
+
+    await user.click(await screen.findByRole('button', { name: 'Inserisci un file per iniziare' }));
+
+    expect(await screen.findByTestId('queue-estimate')).toHaveTextContent('Per stimare il tempo, esegui il Test bench nella sezione Modelli.');
+  });
+
   it('transcribes a file and shows the model actually used', async () => {
     const { user } = setup({ installed: ['base'] });
 
