@@ -35,5 +35,7 @@ export default defineConfig(({ mode }) => ({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // I test con axe e con l'app intera sono lenti su PC carichi: 5 s di default sforano a caso.
+    testTimeout: 20000,
   },
 }));
